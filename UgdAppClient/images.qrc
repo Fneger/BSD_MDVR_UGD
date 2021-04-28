@@ -1,0 +1,32 @@
+<RCC>
+    <qresource prefix="/">
+        <file>images/add_device.png</file>
+        <file>images/client_refresh.png</file>
+        <file>images/delete_device.png</file>
+        <file>images/add_mcu.png</file>
+        <file>images/save_product.png</file>
+        <file>images/delete_mcu.png</file>
+        <file>images/cn1.png</file>
+        <file>images/cn2.png</file>
+        <file>images/cn3.png</file>
+        <file>images/cn4.png</file>
+        <file>images/cn5.png</file>
+        <file>images/cn6.png</file>
+        <file>images/cn7.png</file>
+        <file>images/cn8.png</file>
+        <file>images/cn9.png</file>
+        <file>images/cn10.png</file>
+        <file>images/cn11.png</file>
+        <file>images/cn12.png</file>
+        <file>images/cn13.png</file>
+        <file>images/download.png</file>
+        <file>images/upload.png</file>
+        <file>images/delete.png</file>
+        <file>images/checked.png</file>
+        <file>images/administrator.png</file>
+        <file>images/events.png</file>
+        <file>images/reset_event.png</file>
+        <file>images/edit_event.png</file>
+        <file>images/stop_transmission.png</file>
+    </qresource>
+</RCC>

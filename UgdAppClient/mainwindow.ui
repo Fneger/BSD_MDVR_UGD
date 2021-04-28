@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1280</width>
+    <height>720</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>MainWindow</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QGridLayout" name="gridLayout_3">
+    <item row="0" column="1">
+     <widget class="QGroupBox" name="groupBox_2">
+      <property name="title">
+       <string>Operation Panel</string>
+      </property>
+      <layout class="QGridLayout" name="gridLayout_2">
+       <item row="0" column="0">
+        <widget class="QStackedWidget" name="ProductInfoWidgets"/>
+       </item>
+      </layout>
+     </widget>
+    </item>
+    <item row="0" column="0">
+     <widget class="QGroupBox" name="groupBox">
+      <property name="maximumSize">
+       <size>
+        <width>180</width>
+        <height>16777215</height>
+       </size>
+      </property>
+      <property name="title">
+       <string>Product List</string>
+      </property>
+      <layout class="QGridLayout" name="gridLayout">
+       <item row="0" column="0">
+        <widget class="QListView" name="ProductList"/>
+       </item>
+      </layout>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+  <widget class="QToolBar" name="toolBar">
+   <property name="windowTitle">
+    <string>toolBar</string>
+   </property>
+   <attribute name="toolBarArea">
+    <enum>TopToolBarArea</enum>
+   </attribute>
+   <attribute name="toolBarBreak">
+    <bool>false</bool>
+   </attribute>
+   <addaction name="action_ClientTest"/>
+   <addaction name="action_SaveProduct"/>
+   <addaction name="action_AddProduct"/>
+   <addaction name="action_DeleteProduct"/>
+   <addaction name="action_RefreshProductInfo"/>
+   <addaction name="action_Events"/>
+   <addaction name="action_Administrator"/>
+  </widget>
+  <action name="action_ClientTest">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset theme="client_test" resource="images.qrc">
+     <normaloff>:/images/cn5.png</normaloff>
+     <normalon>:/images/cn6.png</normalon>:/images/cn5.png</iconset>
+   </property>
+   <property name="text">
+    <string>&amp;ClientTest</string>
+   </property>
+   <property name="toolTip">
+    <string>Client Test</string>
+   </property>
+  </action>
+  <action name="action_SaveProduct">
+   <property name="icon">
+    <iconset theme="save_product" resource="images.qrc">
+     <normaloff>:/images/save_product.png</normaloff>:/images/save_product.png</iconset>
+   </property>
+   <property name="text">
+    <string>&amp;SaveProduct</string>
+   </property>
+   <property name="toolTip">
+    <string>Save Current Product</string>
+   </property>
+  </action>
+  <action name="action_AddProduct">
+   <property name="icon">
+    <iconset theme="add_product" resource="images.qrc">
+     <normaloff>:/images/add_device.png</normaloff>:/images/add_device.png</iconset>
+   </property>
+   <property name="text">
+    <string>&amp;AddProduct</string>
+   </property>
+   <property name="toolTip">
+    <string>Add Product</string>
+   </property>
+  </action>
+  <action name="action_DeleteProduct">
+   <property name="icon">
+    <iconset theme="delete_product" resource="images.qrc">
+     <normaloff>:/images/delete_device.png</normaloff>:/images/delete_device.png</iconset>
+   </property>
+   <property name="text">
+    <string>&amp;DeleteProduct</string>
+   </property>
+   <property name="toolTip">
+    <string>Delete Product</string>
+   </property>
+  </action>
+  <action name="action_RefreshProductInfo">
+   <property name="icon">
+    <iconset theme="refresh_product_info" resource="images.qrc">
+     <normaloff>:/images/client_refresh.png</normaloff>:/images/client_refresh.png</iconset>
+   </property>
+   <property name="text">
+    <string>&amp;RefreshProductInfo</string>
+   </property>
+   <property name="toolTip">
+    <string>Refresh Product Info</string>
+   </property>
+  </action>
+  <action name="action_Administrator">
+   <property name="icon">
+    <iconset theme="administrator" resource="images.qrc">
+     <normaloff>:/images/administrator.png</normaloff>:/images/administrator.png</iconset>
+   </property>
+   <property name="text">
+    <string>&amp;Administrator</string>
+   </property>
+   <property name="toolTip">
+    <string>Administrator</string>
+   </property>
+  </action>
+  <action name="action_Events">
+   <property name="icon">
+    <iconset theme="events" resource="images.qrc">
+     <normaloff>:/images/edit_event.png</normaloff>:/images/edit_event.png</iconset>
+   </property>
+   <property name="text">
+    <string>&amp;Events</string>
+   </property>
+   <property name="toolTip">
+    <string>Events</string>
+   </property>
+  </action>
+ </widget>
+ <resources>
+  <include location="images.qrc"/>
+ </resources>
+ <connections/>
+</ui>
