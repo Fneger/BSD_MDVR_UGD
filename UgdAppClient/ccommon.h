@@ -18,6 +18,8 @@ public:
     void SetTcpClient(CTcpClient *pTcpClient) { m_tcpClient = pTcpClient; }
     void RemoveItem(QListWidget *listWidget,int row);
     void RemoveAllItems(QListWidget *listWidget);
+    QStringList GetProductList();
+    bool GetProductInfo(const QString &name, PRODUCT_INFO_S &info);
     QMap<QString, PRODUCT_INFO_S> LoadProducts();
     void getCpuId(unsigned int CPUInfo[4], unsigned int InfoType);
     void getCpuIdex(unsigned int CPUInfo[4], unsigned int InfoType, unsigned int ECXValue);
@@ -29,8 +31,8 @@ public:
     QString GetEventDeviceIdTypeName(int type);
     QString GetEventStatusName(int status);
     QMap<quint64,EVENT_INFO_S> QueryEvents();
+    bool AddLog2Db(CTcpClient *pClient, const QString &productName, const QString &devNum, const QString &imeiNumber, const QString &fwVer, int type, int subtype, int result, const QString &msg);
 private:
-    static CCommon *S_pThis;
     CTcpClient *m_tcpClient;
 };
 

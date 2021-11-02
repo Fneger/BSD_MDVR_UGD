@@ -61,6 +61,7 @@ VERSION_INFO_S CAddVersinDlg::versionInfo()
     m_versionInfo.name = ui->VersionNameLineEdit->text();
     m_versionInfo.message = ui->VersionMessageTextEdit->toPlainText();
     m_versionInfo.isDefault = false;
+    m_versionInfo.custom = GetCustom(m_versionInfo.name);
     return m_versionInfo;
 }
 

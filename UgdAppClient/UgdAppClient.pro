@@ -19,11 +19,15 @@ DEFINES += QT_DEPRECATED_WARNINGS
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 
 SOURCES += \
+    ../UgdServer/ZoomPipeline/smartlink/st_message.cpp \
     ../UgdServer/ZoomPipeline/smartlink/st_packet_tool.cpp \
+    base-ui/CHintWidget.cpp \
+    base-ui/ccalendardlg.cpp \
     base/myautomutex.cpp \
     base/mythread.cpp \
     ccommon.cpp \
     ceventsdlg.cpp \
+    cloginfodlg.cpp \
     info/caddeventdlg.cpp \
     info/caddgroupfiledlg.cpp \
     info/caddproductdlg.cpp \
@@ -50,10 +54,13 @@ SOURCES += \
 
 HEADERS += \
     ../UgdServer/ZoomPipeline/smartlink/st_packet_tool.h \
+    base-ui/CHintWidget.h \
+    base-ui/ccalendardlg.h \
     base/myautomutex.h \
     base/mythread.h \
     ccommon.h \
     ceventsdlg.h \
+    cloginfodlg.h \
     info/caddeventdlg.h \
     info/caddgroupfiledlg.h \
     info/caddproductdlg.h \
@@ -78,7 +85,9 @@ HEADERS += \
     network/qghtcpclient.h
 
 FORMS += \
+    base-ui/ccalendardlg.ui \
     ceventsdlg.ui \
+    cloginfodlg.ui \
     info/caddeventdlg.ui \
     info/caddgroupfiledlg.ui \
     info/caddproductdlg.ui \
@@ -102,7 +111,11 @@ INCLUDEPATH += \
     $$PWD/network \
     $$PWD/info \
     $$PWD/logger \
-    $$PWD/base
+    $$PWD/base \
+    $$PWD/base-ui
+
+INCLUDEPATH += E:\boost_1_77_0
+INCLUDEPATH += E:\boost_1_77_0\boost
 
 # Default rules for deployment.
 qnx: target.path = /tmp/$${TARGET}/bin

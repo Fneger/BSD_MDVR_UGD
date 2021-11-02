@@ -25,6 +25,7 @@ private:
     quint64 m_maxUUID;
     quint64 m_minUUID;
     quint64 m_currNewUUID;
+    QMutex m_clientsMutex;
 };
 
 #endif // CTCPCLIENTTEST_H

@@ -1,14 +1,16 @@
 ﻿#ifndef ST_MESSAGE_H
 #define ST_MESSAGE_H
-#include <qglobal.h>
+#include <QtCore>
 #include <QString>
 #include <QStringList>
 #include <QMap>
 
+
+
+
 #define DATA_PAYLOAD 17408 //10*1024
 using namespace std;
 namespace BdUgdServer {
-
     //远程版本管理协议由英国客户八代空中协议衍生而来
     //数据包封包格式可参考该协议
     typedef enum BD_PACKET_FUNC_ID_E{
@@ -124,12 +126,15 @@ typedef enum tag_User_Auth{
 
 //用户信息
 typedef struct tag_User_Info{
+    int id;
     QString name;   //名称
     QString password; //密码
     int auth;   //权限 1:管理员，0：普通用户
     QString date;   //添加日期
     QString message; //信息
     QStringList products; //可以访问产品列表
+    QString log_path;   //用户操作日志储存路径
+    int64_t auth_bits;  //用户可操作权限控制位
 }USER_INFO_S;
 
 typedef struct tag_Version_Info{
@@ -139,6 +144,7 @@ typedef struct tag_Version_Info{
     QString message; //信息
     QString fileName;   //升级文件全路径
     uint32_t fileSize;  //文件大小
+    QString custom;     //定制信息 BD、BD_C1、BD_C2
 }VERSION_INFO_S;
 
 //MCU相关信息
@@ -237,8 +243,8 @@ typedef enum BD_REQUEST_CODE {
     BdRequestAddNewMcuVersion_E,        //添加Mcu新版本
     BdRequestRemoveMcuVersion_E,  //移除Mcu版本
     BdRequestSetDefaultMcuVersion_E,    //设置MCU默认版本
-    BdRequestAddOtherFileVersion_E,      //添加其他文件版本
-    BdRequestRemoveOtherFileVersion_E,      //移除其他文件版本
+    BdRequestAddGroupFileVersion_E,      //添加组合文件版本
+    BdRequestRemoveGroupFileVersion_E,      //移除组合文件版本
     BdRequestGetUserList_E,   //获取用户列表
     BdRequestAddUser_E,         //添加用户
     BdRequestRemoveUser_E,  //移除用户
@@ -248,7 +254,7 @@ typedef enum BD_REQUEST_CODE {
     BdRequestDeleteFile_E,      //删除文件
     BdRequestAddGroupFile_E,    //添加文件组
     BdRequestRemoveGroupFile_E,    //移除文件组
-    BdRequestAddFilesToGroupFile_E, //向文件组中添加文件
+    BdRequestAddFileToGroupFile_E, //向文件组中添加文件
     BdRequestRemoveFilesFromGroupFile_E, //从文件组中移除文件
     BdRequestAddEvent_E, //添加事件
     BdRequestRemoveEvent_E, //移除事件
@@ -256,6 +262,9 @@ typedef enum BD_REQUEST_CODE {
     BdRequestSetEventStatus_E,   //设置事件状态
     BdRequestQueryDeviceClientEvents_E, //查询设备终端下所需执行事件
     BdRequestQueryEventStatus_E,    //查询事件状态
+    BdRequestSetDefaultGroupFileVersion_E,  //设置组合文件默认版本
+    BdRequestAddLog_E,  //添加日志
+    BdRequestQueryLog_E, //查询日志
 }BD_JSON_REQUEST_CODE_E;
 
 //执行码定义
@@ -288,6 +297,7 @@ typedef enum BD_EXECUTION_CODE{
     BdRemoveFileFailed_E,   //删除文件失败
     BdGroupFileInfoParseError_E,    //组合文件信息解析失败
     BdRemoveEventFailed_E,  //移除事件失败
+    BdExecutionFailed_E //执行失败
 }BD_EXECUTION_CODE_E;
 
 //请求上传文件定义
@@ -319,11 +329,49 @@ typedef struct BD_REQUEST_STOP_UPLOAD_FILE{
     QString msg;
 }BD_REQUEST_STOP_UPLOAD_FILE_S;
 
-//移除MCU类型
-typedef struct BD_REQUEST_REMOVE_MCU{
+//CRC类型
+typedef struct BD_REQUEST_CRC{
+    QString productName;   //产品名称
+    VERSION_INFO_S verInfo;
+}BD_REQUEST_CRC_S;
+
+//MCU类型
+typedef struct BD_REQUEST_MCU{
     QString productName;   //产品名称
     QString mcuTypeName;    //mcu类型名称
-}BD_REQUEST_REMOVE_MCU_S;
+    VERSION_INFO_S verInfo;
+}BD_REQUEST_MCU_S;
+
+//GROUP类型
+typedef struct BD_REQUEST_GROUP{
+    QString productName;   //产品名称
+    QString name;   //组合文件名称
+    QString date;   //添加日期
+    QString savePath;   //组合文件储存路径
+    QString message;    //备注信息
+    bool isDefault; //是否为默认版本
+    VERSION_INFO_S verInfo;
+}BD_REQUEST_GROUP_S;
+
+
+//日志类型
+typedef struct {
+    QString productName; //产品名称
+    QString devNumber;  //设备号
+    QString imeiNumber; //4G模块 IMEI
+    QString fwVersion;    //固件版本呢
+    int type;   //日志类型
+    int subtype;   //日志子类型
+    int result; //执行结果
+    QDateTime startDateTime;   //查询开始时间
+    QDateTime endDateTime;  //查询结束事件
+    QDateTime dateTime;     //日志产生事件
+    bool fuzzySearch;   //是否采用模糊匹配方式搜索
+    int pageNo;//页码
+    int pageSize;   //页大小
+    QString message;    //日志内容
+} BD_REQUEST_LOG_S;
+
 
 //查询指定文件类型，指定版本信息
 typedef struct BD_REQUEST_QUERY_SPECIFY_VERSION_INFO{
@@ -357,8 +405,10 @@ typedef struct BD_REQUEST_SET_EVENT_STATUS{
     QString ackPara2; //返回参数
 }BD_REQUEST_SET_EVENT_STATUS_S;
 
-
 #pragma pack(pop)
+
+//获取版本定制信息
+QString GetCustom(const QString name);
 }
 namespace ExampleServer{
 

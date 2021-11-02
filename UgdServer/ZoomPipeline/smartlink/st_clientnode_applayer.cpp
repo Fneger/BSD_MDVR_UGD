@@ -10,6 +10,7 @@
 #include "st_client_file.h"
 #include "st_client_event.h"
 
+
 namespace ExampleServer{
 
     QString st_clientNodeAppLayer::S_sSaveRootPath = "./version/";
@@ -45,9 +46,7 @@ namespace ExampleServer{
     {
         if(st_clientNode_baseTrans::deal_current_message_block() < 0)
             return -1;
-        qDebug() << "Test......0";
         uint8_t *msgdata = (uint8_t*)&m_currentBlock.data()[14];
-        qDebug() << "Test......1";
         uint16_t msgpos = 0;
         QStringList msg;
         switch (uplinkFid()) {
@@ -143,7 +142,7 @@ namespace ExampleServer{
             break;
         case BdTerminalJson_E:
         {
-             msg << "BdUgdServer Receive BdTerminalJson_E\n";
+             //msg << "BdUgdServer Receive BdTerminalJson_E\n";
 //             QByteArray json;
 //             json.append((char*)msgdata,strlen((char*)msgdata)+1);
 //             //strcpy(json,(char*)msgdata);
@@ -207,81 +206,497 @@ namespace ExampleServer{
                         && requestCode != BdRequestQuerySpecifyVersionInfo_E
                         && requestCode != BdRequestQueryDefaultVersionInfo_E
                         && requestCode != BdRequestQueryDeviceClientEvents_E
-                        && requestCode != BdRequestSetEventStatus_E)
+                        && requestCode != BdRequestSetEventStatus_E
+                        && requestCode != BdRequestAddLog_E)
                 {
                     ackJsonObj["code"] = BdUserNotLogged_E;
                     ackJsonObj["msg"] = "The user is not logged in!";
                     goto RESPONSE_END;
                 }
                 switch (requestCode) {
-                case BdRequestAddMcuType_E:
-                case BdRequestRemoveMcuVersion_E:
                 case BdRequestAddNewMcuVersion_E:
-                case BdRequestRemoveCrcVersion_E:
-                case BdRequestAddNewCrcVersion_E:
-                case BdRequestSetDefaultCrcVersion_E:
-                case BdRequestAddOtherFileVersion_E:
-                case BdRequestSetDefaultMcuVersion_E:
-                case BdRequestSaveProductInfo_E: //添加产品
+                case BdRequestAddMcuType_E:
                 {
-                    QJsonObject newProductObj = jsonObj["data"].toObject();
-                    if(!newProductObj.contains("ProductName") || !newProductObj.contains("ProductTypeId") || !newProductObj.contains("Date")
-                            || !newProductObj.contains("ProductDesp") || !newProductObj.contains("CrcDefaultVersion") || !newProductObj.contains("SaveFilePath")
-                            || !newProductObj.contains("McuInfos") || !newProductObj.contains("GroupFileDefaultVersion") || !newProductObj.contains("GroupFileInfos"))
+                    QJsonObject mcuObj = jsonObj["data"].toObject();
+                    if(!mcuObj.contains("ProductName") || !mcuObj.contains("McuTypeName"))
                     {
-                        ackJsonObj["code"] = BdProductInfoParseError_E;
-                        ackJsonObj["msg"] ="Product information parsing error!";
+                        ackJsonObj["code"] = BdJsonParseError_E;
+                        ackJsonObj["msg"] ="Mcu version information parsing error!";
                         goto RESPONSE_END;
                     }
-                    QString saveFilePath = newProductObj["SaveFilePath"].toString();
-                    QString editProduct = newProductObj["ProductName"].toString();
-                    QString jsonFile = getProductInfoFileName(editProduct);
-                    QJsonDocument productDoc;
-                    if(st_client_file::Instance()->openProductJson(jsonFile,productDoc))
+                    BODY_MCU_VERSION_INFO_S info;
+                    info.productName = mcuObj["ProductName"].toString();
+                    info.mcuTypeName = mcuObj["McuTypeName"].toString();
+                    if(mcuObj.contains("Name") && mcuObj.contains("Date") && mcuObj.contains("IsDefault")
+                            && mcuObj.contains("Message") && mcuObj.contains("FileName") && mcuObj.contains("FileSize"))
                     {
-                        QJsonObject productObj = productDoc.object();
-
-
-                        productObj[editProduct] = newProductObj;
-                        //判断是否有新版本加入到历史版本中
-                        //......
-                        productDoc.setObject(productObj);
-                        if(st_client_file::Instance()->saveProductJson(jsonFile,productDoc))
-                        {
-                            ackJsonObj["code"] = BdExecutionSucceeded_E;
-                            ackJsonObj["msg"] = "Save product successfully!";
-                        }
-                        else
-                        {
-                            ackJsonObj["code"] = BdSaveProductInfoFileFailed_E;
-                            ackJsonObj["msg"] ="Saving failed, Failed to save product information file!";
-                        }
+                        info.name = mcuObj["Name"].toString();
+                        info.date = mcuObj["Date"].toString();
+                        info.isDefaultVersion = mcuObj["IsDefault"].toBool();
+                        info.message = mcuObj["Message"].toString();
+                        info.fileName = mcuObj["FileName"].toString();
+                        info.fileSize = mcuObj["FileSize"].toString().toUInt();
                     }
                     else
                     {
-                        ackJsonObj["code"] = BdOpenProductInfoFileFailed_E;
-                        ackJsonObj["msg"] ="Failed to open product information file!";
+                        info.name = "";
+                        info.date = "";
+                        info.isDefaultVersion = false;
+                        info.message = "";
+                        info.fileName = "";
+                        info.fileSize = 0;
+                    }
+
+                    GS_DB_BODY_C body = info;
+                    if(st_client_file::Instance()->addDb(TB_MCU_VERSION_INFO_E, body))
+                    {
+                        ackJsonObj["code"] = BdExecutionSucceeded_E;
+                        ackJsonObj["msg"] = "Add mcu version successfully!";
+                    }
+                    else
+                    {
+                        ackJsonObj["code"] = BdExecutionFailed_E;
+                        ackJsonObj["msg"] = "Add mcu version failed!";
+                    }
+                }
+                    break;
+                case BdRequestRemoveMcuType_E:
+                case BdRequestRemoveMcuVersion_E:
+                {
+                    QJsonObject mcuObj = jsonObj["data"].toObject();
+                    if(!mcuObj.contains("ProductName") || !mcuObj.contains("McuTypeName"))
+                    {
+                        ackJsonObj["code"] = BdJsonParseError_E;
+                        ackJsonObj["msg"] ="Mcu version information parsing error!";
+                        goto RESPONSE_END;
+                    }
+                    BODY_MCU_VERSION_INFO_S info;
+                    info.productName = mcuObj["ProductName"].toString();
+                    info.mcuTypeName = mcuObj["McuTypeName"].toString();
+                    if(mcuObj.contains("Name"))
+                    {
+                        info.name = mcuObj["Name"].toString();
+                    }
+
+                    GS_DB_BODY_C body = info;
+                    if(st_client_file::Instance()->removeDb(TB_MCU_VERSION_INFO_E, body))
+                    {
+                        ackJsonObj["code"] = BdExecutionSucceeded_E;
+                        ackJsonObj["msg"] = "Remove mcu version successfully!";
+                    }
+                    else
+                    {
+                        ackJsonObj["code"] = BdExecutionFailed_E;
+                        ackJsonObj["msg"] = "Remove mcu version failed!";
+                    }
+                }
+                    break;
+                case BdRequestSetDefaultMcuVersion_E:
+                {
+                    QJsonObject mcuObj = jsonObj["data"].toObject();
+                    if(!mcuObj.contains("ProductName") || !mcuObj.contains("McuTypeName")
+                            || !mcuObj.contains("Name") || !mcuObj.contains("Date") || !mcuObj.contains("IsDefault")
+                            || !mcuObj.contains("Message") || !mcuObj.contains("FileName") || !mcuObj.contains("FileSize"))
+                    {
+                        ackJsonObj["code"] = BdJsonParseError_E;
+                        ackJsonObj["msg"] ="Mcu version information parsing error!";
+                        goto RESPONSE_END;
+                    }
+                    BODY_MCU_VERSION_INFO_S info;
+                    info.productName = mcuObj["ProductName"].toString();
+                    info.mcuTypeName = mcuObj["McuTypeName"].toString();
+                    info.name = mcuObj["Name"].toString();
+                    info.date = mcuObj["Date"].toString();
+                    info.isDefaultVersion = mcuObj["IsDefault"].toBool();
+                    info.message = mcuObj["Message"].toString();
+                    info.fileName = mcuObj["FileName"].toString();
+                    info.fileSize = mcuObj["FileSize"].toString().toUInt();
+                    GS_DB_BODY_C body = info;
+                    if(!st_client_file::Instance()->queryDb(TB_MCU_VERSION_INFO_E, body))
+                    {
+                        ackJsonObj["code"] = BdExecutionFailed_E;
+                        ackJsonObj["msg"] = "Mcu version do not exists!";
+                        goto RESPONSE_END;
+                    }
+                    info = boost::any_cast<BODY_MCU_VERSION_INFO_S>(body);
+                    info.isDefaultVersion = true;
+
+                    QList<BODY_MCU_VERSION_INFO_S> infos;
+                    body = infos;
+                    QString queryStr = QString("product_name = \"%1\" AND mcu_type_name = \"%2\" AND is_default_version = TRUE").arg(info.productName).arg(info.mcuTypeName);
+                    if(st_client_file::Instance()->queryDb(TB_MCU_VERSION_INFO_E, body, queryStr))
+                    {
+                        infos = boost::any_cast<QList<BODY_MCU_VERSION_INFO_S>>(body);
+                        foreach (BODY_MCU_VERSION_INFO_S info1, infos) {
+                            if(info1.isDefaultVersion)
+                            {qDebug() << __FUNCTION__ << __LINE__ << info1.mcuTypeName << info1.name;
+                                info1.isDefaultVersion = false;
+                                body = info1;
+                                st_client_file::Instance()->updateDb(TB_MCU_VERSION_INFO_E, body);
+                            }
+                        }
+                    }
+
+                    body = info;
+                    if(st_client_file::Instance()->updateDb(TB_MCU_VERSION_INFO_E, body))
+                    {
+                        ackJsonObj["code"] = BdExecutionSucceeded_E;
+                        ackJsonObj["msg"] = "Set mcu default version successfully!";
+                    }
+                    else
+                    {
+                        ackJsonObj["code"] = BdExecutionFailed_E;
+                        ackJsonObj["msg"] = "Set mcu default version failed!";
+                    }
+                }
+                    break;
+                case BdRequestAddNewCrcVersion_E:
+                {
+                    QJsonObject crcObj = jsonObj["data"].toObject();
+                    if(!crcObj.contains("ProductName") || !crcObj.contains("Name") || !crcObj.contains("Date") || !crcObj.contains("IsDefault")
+                            || !crcObj.contains("Message") || !crcObj.contains("FileName") || !crcObj.contains("FileSize"))
+                    {
+                        ackJsonObj["code"] = BdJsonParseError_E;
+                        ackJsonObj["msg"] ="Crc version information parsing error!";
+                        goto RESPONSE_END;
+                    }
+                    BODY_CRC_VERSION_INFO_S info;
+                    info.productName = crcObj["ProductName"].toString();
+                    info.name = crcObj["Name"].toString();
+                    info.date = crcObj["Date"].toString();
+                    info.isDefaultVersion = crcObj["IsDefault"].toBool();
+                    info.message = crcObj["Message"].toString();
+                    info.fileName = crcObj["FileName"].toString();
+                    info.fileSize = crcObj["FileSize"].toString().toUInt();
+                    if(crcObj.contains("Custom"))
+                        info.custom = crcObj["Custom"].toString();
+                    GS_DB_BODY_C body = info;
+                    if(st_client_file::Instance()->addDb(TB_CRC_VERSION_INFO_E, body))
+                    {
+                        ackJsonObj["code"] = BdExecutionSucceeded_E;
+                        ackJsonObj["msg"] = "Add crc version successfully!";
+                    }
+                    else
+                    {
+                        ackJsonObj["code"] = BdExecutionFailed_E;
+                        ackJsonObj["msg"] = "Add crc version failed!";
+                    }
+                }
+                    break;
+                case BdRequestRemoveCrcVersion_E:
+                {
+                    QJsonObject crcObj = jsonObj["data"].toObject();
+                    if(!crcObj.contains("ProductName") || !crcObj.contains("Name"))
+                    {
+                        ackJsonObj["code"] = BdJsonParseError_E;
+                        ackJsonObj["msg"] ="Crc version information parsing error!";
+                        goto RESPONSE_END;
+                    }
+                    BODY_CRC_VERSION_INFO_S info;
+                    info.productName = crcObj["ProductName"].toString();
+                    info.name = crcObj["Name"].toString();
+                    GS_DB_BODY_C body = info;
+                    if(st_client_file::Instance()->removeDb(TB_CRC_VERSION_INFO_E, body))
+                    {
+                        ackJsonObj["code"] = BdExecutionSucceeded_E;
+                        ackJsonObj["msg"] = "Remove crc version successfully!";
+                    }
+                    else
+                    {
+                        ackJsonObj["code"] = BdExecutionFailed_E;
+                        ackJsonObj["msg"] = "Remove crc version failed!";
+                    }
+                }
+                    break;
+                case BdRequestSetDefaultCrcVersion_E:
+                {
+                    QJsonObject crcObj = jsonObj["data"].toObject();
+                    if(!crcObj.contains("ProductName") || !crcObj.contains("Name") || !crcObj.contains("Date") || !crcObj.contains("IsDefault")
+                            || !crcObj.contains("Message") || !crcObj.contains("FileName") || !crcObj.contains("FileSize"))
+                    {
+                        ackJsonObj["code"] = BdJsonParseError_E;
+                        ackJsonObj["msg"] ="Crc version information parsing error!";
+                        goto RESPONSE_END;
+                    }
+                    BODY_CRC_VERSION_INFO_S info;
+                    info.productName = crcObj["ProductName"].toString();
+                    info.name = crcObj["Name"].toString();
+                    info.date = crcObj["Date"].toString();
+                    info.isDefaultVersion = crcObj["IsDefault"].toBool();
+                    info.message = crcObj["Message"].toString();
+                    info.fileName = crcObj["FileName"].toString();
+                    info.fileSize = crcObj["FileSize"].toString().toUInt();
+                    if(crcObj.contains("Custom"))
+                        info.custom = crcObj["Custom"].toString();
+
+                    GS_DB_BODY_C body = info;
+                    if(!st_client_file::Instance()->queryDb(TB_CRC_VERSION_INFO_E, body))
+                    {
+                        ackJsonObj["code"] = BdExecutionFailed_E;
+                        ackJsonObj["msg"] = "Crc version do not exists!";
+                        goto RESPONSE_END;
+                    }
+
+                    info = boost::any_cast<BODY_CRC_VERSION_INFO_S>(body);
+                    info.custom = GetCustom(info.name);
+                    info.isDefaultVersion = true;
+
+                    QList<BODY_CRC_VERSION_INFO_S> infos;
+                    body = infos;
+                    QString queryStr = QString("product_name = \"%1\" AND is_default_version = TRUE").arg(info.productName);
+                    if(st_client_file::Instance()->queryDb(TB_CRC_VERSION_INFO_E, body, queryStr)) //查到默认版本，根绝定制信息确认是否需要去掉默认
+                    {
+                        QList<BODY_CRC_VERSION_INFO_S> infos = boost::any_cast<QList<BODY_CRC_VERSION_INFO_S>>(body);
+                        foreach (BODY_CRC_VERSION_INFO_S info1, infos) {
+                            QString custom = GetCustom(info1.name);
+                            if(custom == info.custom)
+                            {
+                                info1.isDefaultVersion = false;
+                                body = info1;
+                                st_client_file::Instance()->updateDb(TB_CRC_VERSION_INFO_E, body);
+                            }
+                        }
+                    }
+
+
+                    body = info;
+                    if(st_client_file::Instance()->updateDb(TB_CRC_VERSION_INFO_E, body))
+                    {
+                        ackJsonObj["code"] = BdExecutionSucceeded_E;
+                        ackJsonObj["msg"] = "Set crc default version successfully!";
+                    }
+                    else
+                    {
+                        ackJsonObj["code"] = BdExecutionFailed_E;
+                        ackJsonObj["msg"] = "Set crc default version failed!";
+                    }
+                }
+                    break;
+                case BdRequestAddFileToGroupFile_E:
+                case BdRequestAddGroupFile_E:
+                {
+                    QJsonObject dataObj = jsonObj["data"].toObject();
+                    if(!dataObj.contains("ProductName") || !dataObj.contains("IsDefault")
+                            || !dataObj.contains("Message") || !dataObj.contains("Name") || !dataObj.contains("SavePath") || !dataObj.contains("Date"))
+                    {
+                        ackJsonObj["code"] = BdGroupFileInfoParseError_E;
+                        ackJsonObj["msg"] ="Add new group file parsing error!";
+                        goto RESPONSE_END;
+                    }
+                    QJsonDocument productDoc;
+                    QString productName = dataObj["ProductName"].toString();
+                    BODY_PRODUCT_INFO_S info1;
+                    info1.name = productName;
+                    GS_DB_BODY_C body = info1;
+                    if(!st_client_file::Instance()->queryDb(TB_PRODUCTS_INFO_E, body))
+                    {
+                        ackJsonObj["code"] = BdProductDontExist_E;
+                        ackJsonObj["msg"] ="The product does not exist!";
+                        goto RESPONSE_END;
+                    }
+                    QString name = dataObj["Name"].toString();
+
+                    QString savePath = getProductSavePath(productName) + name + "/";
+                    QDir dir;
+                    dir.setPath(savePath);
+                    bool res = false;
+                    if(dir.exists())
+                        res = true;
+                    else
+                    {
+                        dir.setPath(getProductSavePath(productName));
+                        res = dir.mkdir("./" + name);
+                    }
+                    if(res)
+                    {
+                        res = false;
+                        BODY_GROUP_VERSION_INFO_S info2;
+                        info2.productName = productName;
+                        info2.name = dataObj["Name"].toString();
+                        info2.date = dataObj["Date"].toString();
+                        info2.isDefaultVersion = dataObj["IsDefault"].toBool();
+                        info2.message = dataObj["Message"].toString();
+                        info2.savePath = dataObj["SavePath"].toString();
+                        if(dataObj.contains("FileInfo")) //添加文件到文件夹中
+                        {
+                            QJsonObject fileObj = dataObj["FileInfo"].toObject();
+                            info2.subFileDate = fileObj["Date"].toString();
+                            info2.subFileName = fileObj["Name"].toString();
+                            info2.subFileSize = fileObj["FileSize"].toString().toUInt();
+                            info2.subFileMessage = fileObj["Message"].toString();
+                            info2.subFilePath = fileObj["FileName"].toString();
+                        }
+                        else
+                        {
+                            info2.subFileDate = "";
+                            info2.subFileName = "";
+                            info2.subFileSize = 0;
+                            info2.subFileMessage = "";
+                            info2.subFilePath = "";
+                        }
+                        body = info2;
+                        res = st_client_file::Instance()->addDb(TB_GROUP_VERSION_INFO_E, body);
+                    }
+                    if(!res)
+                    {
+                        dir.setPath(savePath);
+                        dir.removeRecursively();
+                        ackJsonObj["code"] = BdExecutionFailed_E;
+                        ackJsonObj["msg"] = "Add group file failed!";
+                    }
+                    else
+                    {
+                        ackJsonObj["code"] = BdExecutionSucceeded_E;
+                        ackJsonObj["msg"] = "Succeeded to add group file!";
+                    }
+                }
+                    break;
+                case BdRequestRemoveGroupFile_E:
+                {
+                    QJsonObject dataObj = jsonObj["data"].toObject();
+                    if(!dataObj.contains("ProductName") || !dataObj.contains("Name"))
+                    {
+                        ackJsonObj["code"] = BdGroupFileInfoParseError_E;
+                        ackJsonObj["msg"] ="Remove group file parsing error!";
+                        goto RESPONSE_END;
+                    }
+
+                    QString productName = dataObj["ProductName"].toString();
+                    QString name = dataObj["Name"].toString();
+                    QString savePath = getProductSavePath(productName) + name + "/";
+                    QDir dir;
+                    dir.setPath(savePath);
+                    bool res = false;
+                    if(dir.exists())
+                    {
+                        res = dir.removeRecursively();
+                    }
+                    else
+                        res = true;
+                    if(!res)
+                    {
+                        ackJsonObj["code"] = BdExecutionFailed_E;
+                        ackJsonObj["msg"] = "Remove group file dir failed!";
+                    }
+                    BODY_GROUP_VERSION_INFO_S info;
+                    info.productName = dataObj["ProductName"].toString();
+                    info.name = dataObj["Name"].toString();
+                    GS_DB_BODY_C body = info;
+                    if(st_client_file::Instance()->removeDb(TB_GROUP_VERSION_INFO_E, body))
+                    {
+                        ackJsonObj["code"] = BdExecutionSucceeded_E;
+                        ackJsonObj["msg"] = "Succeeded remove a group file!";
+                    }
+                    else
+                    {
+                        ackJsonObj["code"] = BdExecutionFailed_E;
+                        ackJsonObj["msg"] = "Remove group file failed!";
                     }
 
                 }
                     break;
+                case BdRequestRemoveFilesFromGroupFile_E:
+                {
+                    QJsonObject dataObj = jsonObj["data"].toObject();
+                    if(!dataObj.contains("ProductName") || !dataObj.contains("Name") || !dataObj.contains("SubFileName"))
+                    {
+                        ackJsonObj["code"] = BdGroupFileInfoParseError_E;
+                        ackJsonObj["msg"] ="Remove file from group file parsing error!";
+                        goto RESPONSE_END;
+                    }
+
+                    BODY_GROUP_VERSION_INFO_S info;
+                    info.productName = dataObj["ProductName"].toString();
+                    info.name = dataObj["Name"].toString();
+                    info.subFileName = dataObj["SubFileName"].toString();
+                    GS_DB_BODY_C body = info;
+                    if(st_client_file::Instance()->removeDb(TB_GROUP_VERSION_INFO_E, body))
+                    {
+                        ackJsonObj["code"] = BdExecutionSucceeded_E;
+                        ackJsonObj["msg"] = "Succeeded in remove file from group file!";
+                    }
+                    else
+                    {
+                        ackJsonObj["code"] = BdExecutionFailed_E;
+                        ackJsonObj["msg"] = "Remove file from group file failed!";
+                    }
+                }
+                    break;
+                case BdRequestSetDefaultGroupFileVersion_E:
+                {
+                    QJsonObject dataObj = jsonObj["data"].toObject();
+                    if(!dataObj.contains("ProductName") || !dataObj.contains("Name"))
+                    {
+                        ackJsonObj["code"] = BdGroupFileInfoParseError_E;
+                        ackJsonObj["msg"] ="Remove group file parsing error!";
+                        goto RESPONSE_END;
+                    }
+
+                    QString productName = dataObj["ProductName"].toString();
+                    QString name = dataObj["Name"].toString();
+
+                    QList<BODY_GROUP_VERSION_INFO_S> infos;
+                    GS_DB_BODY_C bodys = infos;
+                    QString queryStr = QString("product_name = \"%1\" AND name = \"%2\"").arg(productName).arg(name);
+                    if(!st_client_file::Instance()->queryDb(TB_GROUP_VERSION_INFO_E, bodys, queryStr))
+                    {
+                        ackJsonObj["code"] = BdExecutionFailed_E;
+                        ackJsonObj["msg"] = "Group version do not exists!";
+                        goto RESPONSE_END;
+                    }
+
+                    infos = boost::any_cast<QList<BODY_GROUP_VERSION_INFO_S>>(bodys);
+
+                    QList<BODY_GROUP_VERSION_INFO_S> clearInfos;
+                    bodys = clearInfos;
+                    queryStr = QString("product_name = \"%1\" AND is_default_version = TRUE").arg(productName);
+                    if(st_client_file::Instance()->queryDb(TB_GROUP_VERSION_INFO_E, bodys, queryStr))
+                    {
+                        clearInfos = boost::any_cast<QList<BODY_GROUP_VERSION_INFO_S>>(bodys);
+                        foreach (BODY_GROUP_VERSION_INFO_S info, clearInfos) {
+                            info.isDefaultVersion = false;
+                            GS_DB_BODY_C body = info;
+                            st_client_file::Instance()->updateDb(TB_GROUP_VERSION_INFO_E, body);
+                        }
+                    }
+
+                    foreach (BODY_GROUP_VERSION_INFO_S info, infos) {
+                        info.isDefaultVersion = true;
+                        qDebug() << __FUNCTION__ << __LINE__ << info.name << info.subFileName;
+                        GS_DB_BODY_C body = info;
+                        st_client_file::Instance()->updateDb(TB_GROUP_VERSION_INFO_E, body);
+                    }
+                    ackJsonObj["code"] = BdExecutionSucceeded_E;
+                    ackJsonObj["msg"] = "Succeeded in set default version of group file!";
+                }
+                    break;
                 case BdRequestAddProductInfo_E:
                 {
-                    QJsonObject newProductObj = jsonObj["data"].toObject();
-                    if(!newProductObj.contains("ProductName") || !newProductObj.contains("ProductTypeId") || !newProductObj.contains("Date")
-                            || !newProductObj.contains("ProductDesp") || !newProductObj.contains("CrcDefaultVersion") || !newProductObj.contains("SaveFilePath")
-                            || !newProductObj.contains("McuInfos") || !newProductObj.contains("GroupFileDefaultVersion") || !newProductObj.contains("GroupFileInfos"))
+                    QJsonObject dataObj = jsonObj["data"].toObject();
+                    if(!dataObj.contains("ProductName") || !dataObj.contains("ProductTypeId") || !dataObj.contains("Date")
+                            || !dataObj.contains("ProductDesp") || !dataObj.contains("SaveFilePath"))
                     {
                         ackJsonObj["code"] = BdProductInfoParseError_E;
                         ackJsonObj["msg"] ="Product information parsing error!";
                         goto RESPONSE_END;
                     }
-                    QString productName = newProductObj["ProductName"].toString();
+                    QString productName = dataObj["ProductName"].toString();
                     QString saveFilePath = getProductSavePath(productName);
-                    QJsonObject productObj;
-                    productObj[productName] = newProductObj;
-                    QJsonDocument productDoc;
-                    productDoc.setObject(productObj);
+                    BODY_PRODUCT_INFO_S info;
+                    info.name = productName;
+                    info.desp = dataObj["ProductDesp"].toString();
+                    info.addDate = dataObj["Date"].toString();
+                    info.modifyDate = dataObj["Date"].toString();
+                    info.savePath = saveFilePath;
+                    GS_DB_BODY_C body = info;
+                    if(st_client_file::Instance()->queryDb(TB_PRODUCTS_INFO_E, body))
+                    {
+                        ackJsonObj["code"] = BdExecutionFailed_E;
+                        ackJsonObj["msg"] = "Product already exists!";
+                        goto RESPONSE_END;
+                    }
+
+
                     QDir dir;
                     dir.setPath(saveFilePath);
                     bool res = false;
@@ -294,8 +709,15 @@ namespace ExampleServer{
                     }
                     if(res)
                     {
-                        QString jsonFile = getProductInfoFileName(productName);
-                        if(st_client_file::Instance()->saveProductJson(jsonFile,productDoc))
+                        st_client_file::Instance()->createLogTableDb(productName);
+                        BODY_PRODUCT_INFO_S info;
+                        info.name = productName;
+                        info.desp = dataObj["ProductDesp"].toString();
+                        info.addDate = dataObj["Date"].toString();
+                        info.modifyDate = dataObj["Date"].toString();
+                        info.savePath = saveFilePath;
+                        GS_DB_BODY_C body = info;
+                        if(st_client_file::Instance()->addDb(TB_PRODUCTS_INFO_E, body))
                         {
                             ackJsonObj["code"] = BdExecutionSucceeded_E;
                             ackJsonObj["msg"] = "Add product successfully!";
@@ -315,9 +737,7 @@ namespace ExampleServer{
                 case BdRequestDeleteProductInfo_E:
                 {
                     QJsonObject newProductObj = jsonObj["data"].toObject();
-                    if(!newProductObj.contains("ProductName") || !newProductObj.contains("ProductTypeId") || !newProductObj.contains("Date")
-                            || !newProductObj.contains("ProductDesp") || !newProductObj.contains("CrcDefaultVersion") || !newProductObj.contains("SaveFilePath")
-                            || !newProductObj.contains("McuInfos") || !newProductObj.contains("GroupFileDefaultVersion") || !newProductObj.contains("GroupFileInfos"))
+                    if(!newProductObj.contains("ProductName"))
                     {
                         ackJsonObj["code"] = BdProductInfoParseError_E;
                         ackJsonObj["msg"] ="Product information parsing error!";
@@ -327,7 +747,14 @@ namespace ExampleServer{
                     QDir dir;
                     dir.setPath(saveFilePath);
                     bool res = dir.removeRecursively();
-                    if(res)
+                    if(!res)
+                    {
+                        ackJsonObj["code"] = BdDeleteProductInfoFailed_E;
+                        ackJsonObj["msg"] = "Remove product save path failed!";
+                        goto RESPONSE_END;
+                    }
+
+                    if(st_client_file::Instance()->removeProductDb(newProductObj["ProductName"].toString()))
                     {
                         ackJsonObj["code"] = BdExecutionSucceeded_E;
                         ackJsonObj["msg"] = "Remove product successfully!";
@@ -379,9 +806,8 @@ namespace ExampleServer{
                         goto RESPONSE_END;
                     }
                     QString productName = dataObj["ProductName"].toString();
-                    QString jsonFile = getProductInfoFileName(productName);
                     QJsonDocument productDoc;
-                    if(st_client_file::Instance()->openProductJson(jsonFile,productDoc))
+                    if(st_client_file::Instance()->openProductDb(productName,productDoc))
                     {
                         QJsonObject productObj = productDoc.object();
                         if(productObj.contains(productName))
@@ -481,235 +907,6 @@ namespace ExampleServer{
                     ackJsonObj["msg"] ="Stop downloading files successfully!";
                 }
                     break;
-                case BdRequestRemoveMcuType_E:
-                {
-                    QJsonObject dataObj = jsonObj["data"].toObject();
-                    if(!dataObj.contains("ProductName") || !dataObj.contains("McuTypeName"))
-                    {
-                        ackJsonObj["code"] = BdAddNewMcuTypeJsonParseError_E;
-                        ackJsonObj["msg"] ="Add new type MCUJson parsing error!";
-                        goto RESPONSE_END;
-                    }
-
-                    QString productName = dataObj["ProductName"].toString();
-                    QString jsonFile = getProductInfoFileName(productName);
-                    QJsonDocument productDoc;
-                    if(!st_client_file::Instance()->openProductJson(jsonFile,productDoc))
-                    {
-                        ackJsonObj["code"] = BdOpenProductInfoFileFailed_E;
-                        ackJsonObj["msg"] ="Failed to open product information file!";
-                        goto RESPONSE_END;
-                    }
-                    QJsonObject productObj = productDoc.object();
-                    if(!productObj.contains(productName))
-                    {
-                        ackJsonObj["code"] = BdProductDontExist_E;
-                        ackJsonObj["msg"] ="The product does not exist!";
-                        goto RESPONSE_END;
-                    }
-                    QJsonObject currObj = productObj[productName].toObject();
-                    if(!currObj.contains("McuInfos"))
-                    {
-                        ackJsonObj["code"] = BdProductInfoParseError_E;
-                        ackJsonObj["msg"] ="Product information parsing error!";
-                        goto RESPONSE_END;
-                    }
-                    QJsonArray mcuArray = currObj["McuInfos"].toArray();
-                    QString curMcuTypeName = dataObj["McuTypeName"].toString();
-                    bool isExists = false;
-                    int index = 0;
-                    foreach (QJsonValue jsonValue, mcuArray) {
-                        QJsonObject mcuObj = jsonValue.toObject();
-                        if(mcuObj.contains("McuTypeName"))
-                        {
-                            if(curMcuTypeName == mcuObj["McuTypeName"].toString())
-                            {
-                                mcuArray.removeAt(index);
-                                currObj["McuInfos"] = mcuArray;
-                                productObj[productName] = currObj;
-                                productDoc.setObject(productObj);
-                                if(st_client_file::Instance()->saveProductJson(jsonFile,productDoc))
-                                {
-                                    ackJsonObj["code"] = BdExecutionSucceeded_E;
-                                    ackJsonObj["msg"] = "Succeeded in adding a new MCU type!";
-                                }
-                                else
-                                {
-                                    ackJsonObj["code"] = BdSaveProductInfoFileFailed_E;
-                                    ackJsonObj["msg"] ="Saving failed, Failed to save product information file!";
-                                    goto RESPONSE_END;
-                                }
-                                isExists = true;
-                                break;
-                            }
-                        }
-                        index++;
-                    }
-                    if(!isExists)
-                    {
-                        ackJsonObj["code"] = BdMcuTypeDontExists_E;
-                        ackJsonObj["msg"] ="The mcu type does not exist!";
-                    }
-                }
-                    break;
-                case BdRequestAddGroupFile_E:
-                {
-                    QJsonObject dataObj = jsonObj["data"].toObject();
-                    if(!dataObj.contains("ProductName") || !dataObj.contains("GroupFileInfo"))
-                    {
-                        ackJsonObj["code"] = BdGroupFileInfoParseError_E;
-                        ackJsonObj["msg"] ="Add new group file parsing error!";
-                        goto RESPONSE_END;
-                    }
-                    QString productName = dataObj["ProductName"].toString();
-                    QString jsonFile = getProductInfoFileName(productName);
-                    QJsonDocument productDoc;
-                    if(!st_client_file::Instance()->openProductJson(jsonFile,productDoc))
-                    {
-                        ackJsonObj["code"] = BdOpenProductInfoFileFailed_E;
-                        ackJsonObj["msg"] ="Failed to open product information file!";
-                        goto RESPONSE_END;
-                    }
-                    QJsonObject productObj = productDoc.object();
-                    if(!productObj.contains(productName))
-                    {
-                        ackJsonObj["code"] = BdProductDontExist_E;
-                        ackJsonObj["msg"] ="The product does not exist!";
-                        goto RESPONSE_END;
-                    }
-
-                    QJsonObject currObj = productObj[productName].toObject();
-                    QJsonArray groupFileArray;
-                    if(currObj.contains("GroupFileInfos"))
-                        groupFileArray = currObj["GroupFileInfos"].toArray();
-
-                    QJsonObject groupFileObj = dataObj["GroupFileInfo"].toObject();
-                    if(!groupFileObj.contains("Name") || !groupFileObj.contains("Date") || !groupFileObj.contains("SavePath") || !groupFileObj.contains("Message")
-                            || !groupFileObj.contains("IsDefault") || !groupFileObj.contains("FileInfos"))
-                    {
-                        ackJsonObj["code"] = BdGroupFileInfoParseError_E;
-                        ackJsonObj["msg"] ="Add new group file parsing error!";
-                        goto RESPONSE_END;
-                    }
-
-                    groupFileArray << groupFileObj;
-                    currObj["GroupFileInfos"] = groupFileArray;
-                    productObj[productName] = currObj;
-                    productDoc.setObject(productObj);
-                    QString name = groupFileObj["Name"].toString();
-                    QString savePath = getProductSavePath(productName) + name + "/";
-                    QDir dir;
-                    dir.setPath(savePath);
-                    bool res = false;
-                    if(dir.exists())
-                        res = true;
-                    else
-                    {
-                        dir.setPath(getProductSavePath(productName));
-                        res = dir.mkdir("./" + name);
-                    }
-                    if(res)
-                    {
-                        if(st_client_file::Instance()->saveProductJson(jsonFile,productDoc))
-                        {
-                            ackJsonObj["code"] = BdExecutionSucceeded_E;
-                            ackJsonObj["msg"] = "Succeeded in adding a group file!";
-                        }
-                        else
-                            res = false;
-                    }
-                    if(!res)
-                    {
-                        dir.setPath(savePath);
-                        dir.removeRecursively();
-                        ackJsonObj["code"] = BdAddProductInfoFalied_E;
-                        ackJsonObj["msg"] = "Add group file failed!";
-                    }
-                }
-                    break;
-                case BdRequestRemoveGroupFile_E:
-                {
-                    QJsonObject dataObj = jsonObj["data"].toObject();
-                    if(!dataObj.contains("ProductName") || !dataObj.contains("GroupFileInfo"))
-                    {
-                        ackJsonObj["code"] = BdGroupFileInfoParseError_E;
-                        ackJsonObj["msg"] ="Add new group file parsing error!";
-                        goto RESPONSE_END;
-                    }
-                    QString productName = dataObj["ProductName"].toString();
-                    QString jsonFile = getProductInfoFileName(productName);
-                    QJsonDocument productDoc;
-                    if(!st_client_file::Instance()->openProductJson(jsonFile,productDoc))
-                    {
-                        ackJsonObj["code"] = BdOpenProductInfoFileFailed_E;
-                        ackJsonObj["msg"] ="Failed to open product information file!";
-                        goto RESPONSE_END;
-                    }
-                    QJsonObject productObj = productDoc.object();
-                    if(!productObj.contains(productName))
-                    {
-                        ackJsonObj["code"] = BdProductDontExist_E;
-                        ackJsonObj["msg"] ="The product does not exist!";
-                        goto RESPONSE_END;
-                    }
-
-                    QJsonObject currObj = productObj[productName].toObject();
-                    QJsonArray groupFileArray;
-                    if(currObj.contains("GroupFileInfos"))
-                        groupFileArray = currObj["GroupFileInfos"].toArray();
-
-                    QJsonObject groupFileObj = dataObj["GroupFileInfo"].toObject();
-                    if(!groupFileObj.contains("Name") || !groupFileObj.contains("Date") || !groupFileObj.contains("SavePath") || !groupFileObj.contains("Message")
-                            || !groupFileObj.contains("IsDefault"))
-                    {
-                        ackJsonObj["code"] = BdGroupFileInfoParseError_E;
-                        ackJsonObj["msg"] ="Add new group file parsing error!";
-                        goto RESPONSE_END;
-                    }
-                    QString name = groupFileObj["Name"].toString();
-                    QString savePath = getProductSavePath(productName) + name + "/";
-                    QDir dir;
-                    dir.setPath(savePath);
-                    bool res = false;
-                    if(dir.exists())
-                    {
-                        res = dir.removeRecursively();
-                    }
-                    else
-                        res = true;
-                    if(res)
-                    {
-                        int index = 0;
-                        foreach (QJsonValue groupFileValue, groupFileArray) {
-                            QJsonObject groupFileObj = groupFileValue.toObject();
-                            if(!groupFileObj.contains("Name"))
-                                continue;
-                            if(groupFileObj["Name"].toString() == name)
-                            {
-                                groupFileArray.removeAt(index);
-                                break;
-                            }
-                            index++;
-                        }
-                        currObj["GroupFileInfos"] = groupFileArray;
-                        productObj[productName] = currObj;
-                        productDoc.setObject(productObj);
-                        if(st_client_file::Instance()->saveProductJson(jsonFile,productDoc))
-                        {
-                            ackJsonObj["code"] = BdExecutionSucceeded_E;
-                            ackJsonObj["msg"] = "Succeeded in remove a group file!";
-                        }
-                        else
-                            res = false;
-                    }
-
-                    if(!res)
-                    {
-                        ackJsonObj["code"] = BdAddProductInfoFalied_E;
-                        ackJsonObj["msg"] = "Remove group file failed!";
-                    }
-                }
-                    break;
                 case BdRequestAddUser_E:
                 {
                     QJsonObject dataObj = jsonObj["data"].toObject();
@@ -800,7 +997,7 @@ namespace ExampleServer{
                 case BdRequestGetUserList_E:
                 {
                     QJsonDocument userDoc;
-                    if(st_client_file::Instance()->openAuthUsers(userDoc))
+                    if(st_client_file::Instance()->openAuthUsersDb(userDoc))
                     {
                         ackJsonObj["data"] = userDoc.object();
                         ackJsonObj["code"] = BdExecutionSucceeded_E;
@@ -823,120 +1020,181 @@ namespace ExampleServer{
                         goto RESPONSE_END;
                     }
                     QString productName = dataObj["ProductName"].toString();
-                    QString jsonFile = getProductInfoFileName(productName);
-                    QJsonDocument productDoc;
-                    if(!st_client_file::Instance()->openProductJson(jsonFile,productDoc))
-                    {
-                        ackJsonObj["code"] = BdOpenProductInfoFileFailed_E;
-                        ackJsonObj["msg"] ="Failed to open product information file!";
-                        goto RESPONSE_END;
-                    }
-                    QJsonObject productObj = productDoc.object();
 
-                    if(!productObj.contains(productName))
+                    BODY_PRODUCT_INFO_S info1;
+                    info1.name = productName;
+                    GS_DB_BODY_C body = info1;
+
+                    if(!st_client_file::Instance()->queryDb(TB_PRODUCTS_INFO_E, body))
                     {
                         ackJsonObj["code"] = BdProductDontExist_E;
                         ackJsonObj["msg"] ="The product does not exist!";
                         goto RESPONSE_END;
                     }
+
+                    info1 = boost::any_cast<BODY_PRODUCT_INFO_S>(body);
+
                     QString fileType = dataObj["FileType"].toString();
                     QString fileSubType = dataObj["FileSubType"].toString();
                     QString versionName =  dataObj["VersionName"].toString();
 
-                    QJsonObject currObj = productObj[productName].toObject();
-                    if(!currObj.contains("SaveFilePath"))
+                    if(info1.savePath.isEmpty() || info1.savePath == "")
                     {
                         ackJsonObj["code"] = BdProductInfoParseError_E;
                         ackJsonObj["msg"] ="Product information parsing error!";
                         goto RESPONSE_END;
                     }
                     bool finded = false;
+                    bool firstFinded = false;
                     if(fileType == "CRC")
                     {
-                        if(!currObj.contains("CrcVersionList"))
+                        QString custom;
+                        if(dataObj.contains("Custom"))
+                            custom = dataObj["Custom"].toString();
+                        else if(productName == "ZH510")
+                            custom = "BD";
+                        else
+                            custom = "STD";
+                        BODY_CRC_VERSION_INFO_S info2;
+                        info2.productName = productName;
+                        info2.name = versionName;
+                        body = info2;
+                        if(st_client_file::Instance()->queryDb(TB_CRC_VERSION_INFO_E, body))
                         {
-                            ackJsonObj["code"] = BdAddNewCrcVersionJsonParseError_E;
-                            ackJsonObj["msg"] ="CRC version Json parsing error!";
-                            goto RESPONSE_END;
-                        }
-                        QJsonArray crcArray;
-                        crcArray = currObj["CrcVersionList"].toArray();
-                        foreach (QJsonValue crcValue, crcArray) {
-                            QJsonObject crcObj = crcValue.toObject();
-                            if(!crcObj.contains("Name"))
-                                continue;
-                            if(crcObj["Name"].toString() == versionName)
+                            info2 = boost::any_cast<BODY_CRC_VERSION_INFO_S>(body);
+                            if(custom == info2.custom)
                             {
+                                finded = true;
+                                custom = info2.custom;
                                 QJsonObject dataObj;
-                                dataObj["SaveFilePath"] = currObj["SaveFilePath"];
+                                QJsonObject crcObj;
+                                st_client_file::Instance()->putInfo2Json(TB_CRC_VERSION_INFO_E, body, crcObj);
+                                dataObj["SaveFilePath"] = info1.savePath;
                                 dataObj["VersionInfo"] = crcObj;
+                                dataObj["Custom"] = custom;
+                                ackJsonObj["data"] = dataObj;
+                            }
+                        }
+                        else //全词匹配方式未找到，使用模糊查找
+                        {
+                            QList<BODY_CRC_VERSION_INFO_S> infos;
+                            body = infos;
+                            QString queryStr = QString("product_name = \"%1\" AND name LIKE \"%%2%\"").arg(productName).arg(versionName);
+                            if(st_client_file::Instance()->queryDb(TB_CRC_VERSION_INFO_E, body, queryStr))
+                            {
+                                infos = boost::any_cast<QList<BODY_CRC_VERSION_INFO_S>>(body);
+                                QJsonObject crcObj;
+                                QJsonArray verArray;
+
+                                foreach (BODY_CRC_VERSION_INFO_S info3, infos) {
+                                    if(custom == info3.custom)
+                                    {
+                                        finded = true;
+                                        custom = info3.custom;
+                                    }
+                                    if(finded && firstFinded == false)
+                                    {
+                                        body = info3;
+                                        st_client_file::Instance()->putInfo2Json(TB_CRC_VERSION_INFO_E, body, crcObj);
+                                        dataObj["VersionInfo"] = crcObj;
+                                        firstFinded = true;
+                                    }
+                                    verArray << info3.name;
+                                }
+                                dataObj["SaveFilePath"] = info1.savePath;
+                                dataObj["VersionInfos"] = verArray;
+                                dataObj["Custom"] = custom;
                                 ackJsonObj["data"] = dataObj;
                                 finded = true;
-                                break;
                             }
                         }
                     }
                     else if(fileType == "MCU")
                     {
-                        if(!currObj.contains("McuInfos"))
+                        BODY_MCU_VERSION_INFO_S info2;
+                        info2.productName = productName;
+                        info2.mcuTypeName = fileSubType;
+                        info2.name = versionName;
+                        body = info2;
+                        if(st_client_file::Instance()->queryDb(TB_MCU_VERSION_INFO_E, body))
                         {
-                            ackJsonObj["code"] = BdProductMcuInfoParseError_E;
-                            ackJsonObj["msg"] = "The MCU information parsing error in the product information!";
-                            goto RESPONSE_END;
+                            QJsonObject dataObj;
+                            QJsonObject mcuObj;
+                            st_client_file::Instance()->putInfo2Json(TB_MCU_VERSION_INFO_E, body, mcuObj);
+                            dataObj["SaveFilePath"] = info1.savePath;
+                            dataObj["VersionInfo"] = mcuObj;
+                            ackJsonObj["data"] = dataObj;
+                            finded = true;
                         }
-                        QJsonArray mcuTypeArray = currObj["McuInfos"].toArray();
-                        foreach (QJsonValue mcuTypeVal, mcuTypeArray) {
-                            QJsonObject mcuTypeObj = mcuTypeVal.toObject();
-                            if(!mcuTypeObj.contains("McuTypeName"))
-                                continue;
-                            if(mcuTypeObj["McuTypeName"].toString() == fileSubType)
+                        else //全词匹配方式未找到，使用模糊查找
+                        {
+                            QList<BODY_MCU_VERSION_INFO_S> infos;
+                            body = infos;
+                            QString queryStr = QString("product_name = \"%1\" AND mcu_type_name = \"%2\" AND name LIKE \"%%3%\"").arg(productName).arg(fileSubType).arg(versionName);
+                            if(st_client_file::Instance()->queryDb(TB_MCU_VERSION_INFO_E, body, queryStr))
                             {
-                                if(!mcuTypeObj.contains("McuVersionList"))
-                                {
-                                    ackJsonObj["code"] = BdProductMcuInfoParseError_E;
-                                    ackJsonObj["msg"] = "The MCU information parsing error in the product information!";
-                                    goto RESPONSE_END;
-                                }
-                                QJsonArray mcuArray = mcuTypeObj["McuVersionList"].toArray();
-                                foreach (QJsonValue mcuVal, mcuArray) {
-                                    QJsonObject mcuObj = mcuVal.toObject();
-                                    if(!mcuObj.contains("Name"))
-                                        continue;
-                                    if(mcuObj["Name"].toString() == versionName)
+                                infos = boost::any_cast<QList<BODY_MCU_VERSION_INFO_S>>(body);
+                                QJsonObject mcuObj;
+                                QJsonArray verArray;
+                                foreach (BODY_MCU_VERSION_INFO_S info3, infos) {
+                                    verArray << info3.name;
+                                    if(firstFinded == false)
                                     {
-                                        QJsonObject dataObj;
-                                        dataObj["SaveFilePath"] = currObj["SaveFilePath"];
+                                        body = info3;
+                                        st_client_file::Instance()->putInfo2Json(TB_MCU_VERSION_INFO_E, body, mcuObj);
                                         dataObj["VersionInfo"] = mcuObj;
-                                        ackJsonObj["data"] = dataObj;
-                                        finded = true;
-                                        break;
+                                        firstFinded = true;
                                     }
                                 }
-                                break;
+                                dataObj["SaveFilePath"] = info1.savePath;
+                                dataObj["VersionInfos"] = verArray;
+                                ackJsonObj["data"] = dataObj;
+                                finded = true;
                             }
                         }
                     }
                     else if(fileType == "GROUP")
                     {
-                        if(!currObj.contains("GroupFileInfos"))
+                        QList<BODY_GROUP_VERSION_INFO_S> infos2;
+                        body = infos2;
+                        QString queryStr = QString("product_name = \"%1\" AND name = \"%2\"").arg(productName).arg(versionName);
+                        if(st_client_file::Instance()->queryDb(TB_GROUP_VERSION_INFO_E, body, queryStr))
                         {
-                            ackJsonObj["code"] = BdJsonParseError_E;
-                            ackJsonObj["msg"] = "The group file information parsing error in the product information!";
-                            goto RESPONSE_END;
-                        }
-                        QJsonArray groupFileArray = currObj["GroupFileInfos"].toArray();
-                        foreach (QJsonValue groupFileVal, groupFileArray) {
-                            QJsonObject groupFileObj = groupFileVal.toObject();
-                            if(!groupFileObj.contains("Name"))
-                                continue;
-                            if(groupFileObj["Name"].toString() == versionName)
+                            QJsonObject infosObj;
+                            st_client_file::Instance()->putInfos2Json(TB_GROUP_VERSION_INFO_E, body, infosObj);
+                            if(infosObj.contains(versionName))
                             {
                                 QJsonObject dataObj;
-                                dataObj["SaveFilePath"] = currObj["SaveFilePath"];
-                                dataObj["VersionInfo"] = groupFileObj;
+                                dataObj["SaveFilePath"] =info1.savePath;
+                                dataObj["VersionInfo"] = infosObj[versionName].toObject();
                                 ackJsonObj["data"] = dataObj;
                                 finded = true;
-                                break;
+                            }
+                        }
+                        else //全词匹配方式未找到，使用模糊查找
+                        {
+                            QList<BODY_GROUP_VERSION_INFO_S> infos;
+                            body = infos;
+                            QString queryStr = QString("product_name = \"%1\" AND name LIKE \"%%3%\"").arg(productName).arg(versionName);
+                            if(st_client_file::Instance()->queryDb(TB_GROUP_VERSION_INFO_E, body, queryStr))
+                            {
+                                infos = boost::any_cast<QList<BODY_GROUP_VERSION_INFO_S>>(body);
+                                QJsonObject infosObj;
+                                st_client_file::Instance()->putInfos2Json(TB_GROUP_VERSION_INFO_E, body, infosObj);
+                                if(infosObj.size() > 0)
+                                {
+                                    dataObj["VersionInfo"] = infosObj[infosObj.keys().first()].toObject();
+                                }
+                                QJsonArray verArray;
+                                foreach (QJsonValue value, infosObj) {
+                                    QJsonObject obj = value.toObject();
+                                    verArray << obj["Name"].toString();
+                                }
+
+                                dataObj["SaveFilePath"] = info1.savePath;
+                                dataObj["VersionInfos"] = verArray;
+                                ackJsonObj["data"] = dataObj;
+                                finded = true;
                             }
                         }
                     }
@@ -962,71 +1220,116 @@ namespace ExampleServer{
                         goto RESPONSE_END;
                     }
                     QString productName = dataObj["ProductName"].toString();
-                    QString jsonFile = getProductInfoFileName(productName);
-                    QJsonDocument productDoc;
-                    if(!st_client_file::Instance()->openProductJson(jsonFile,productDoc))
-                    {
-                        ackJsonObj["code"] = BdOpenProductInfoFileFailed_E;
-                        ackJsonObj["msg"] ="Failed to open product information file!";
-                        goto RESPONSE_END;
-                    }
-                    QJsonObject productObj = productDoc.object();
+                    BODY_PRODUCT_INFO_S info1;
+                    info1.name = productName;
+                    GS_DB_BODY_C body = info1;
 
-                    if(!productObj.contains(productName))
+                    if(!st_client_file::Instance()->queryDb(TB_PRODUCTS_INFO_E, body))
                     {
                         ackJsonObj["code"] = BdProductDontExist_E;
                         ackJsonObj["msg"] ="The product does not exist!";
                         goto RESPONSE_END;
                     }
+
+
                     QString fileType = dataObj["FileType"].toString();
                     QString fileSubType = dataObj["FileSubType"].toString();
+                    info1 = boost::any_cast<BODY_PRODUCT_INFO_S>(body);
 
-                    QJsonObject currObj = productObj[productName].toObject();
-                    if(!currObj.contains("SaveFilePath"))
+                    if(info1.savePath.isEmpty() || info1.savePath == "")
                     {
                         ackJsonObj["code"] = BdProductInfoParseError_E;
                         ackJsonObj["msg"] ="Product information parsing error!";
                         goto RESPONSE_END;
                     }
+
                     bool finded = false;
                     if(fileType == "CRC")
                     {
-                        if(!currObj.contains("CrcDefaultVersion"))
+
+                        QList<BODY_CRC_VERSION_INFO_S> infos2;
+                        body = infos2;
+                        QString queryStr = QString("product_name = \"%1\" AND is_default_version = TRUE").arg(productName);
+                        if(st_client_file::Instance()->queryDb(TB_CRC_VERSION_INFO_E, body, queryStr))
                         {
-                            ackJsonObj["code"] = BdAddNewCrcVersionJsonParseError_E;
-                            ackJsonObj["msg"] ="CRC version Json parsing error!";
-                            goto RESPONSE_END;
+                            infos2 = boost::any_cast<QList<BODY_CRC_VERSION_INFO_S>>(body);
+
+                            if(productName == "ZH510" && !dataObj.contains("Custom")) //防止旧版ZH510 BD版本升级为标准版
+                                dataObj["Custom"] = "BD";
+
+                            if(dataObj.contains("Custom"))
+                            {
+                                QString custom = dataObj["Custom"].toString();
+                                if(custom == "" || custom.isEmpty() || custom == "STD")
+                                {
+                                    foreach (BODY_CRC_VERSION_INFO_S info, infos2) {
+                                        if(info.custom == "" || info.custom.isEmpty() || info.custom == "STD") //定制类型匹配
+                                        {
+                                            QJsonObject crcObj;
+                                            body = info;
+                                            st_client_file::Instance()->putInfo2Json(TB_CRC_VERSION_INFO_E, body, crcObj);
+                                            QJsonObject dataObj;
+                                            dataObj["SaveFilePath"] = info1.savePath;
+                                            dataObj["VersionInfo"] = crcObj;
+                                            dataObj["Custom"] = "STD";
+                                            ackJsonObj["data"] = dataObj;
+                                            finded = true;
+                                            break;
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    foreach (BODY_CRC_VERSION_INFO_S info, infos2) {
+                                        if(info.custom == custom) //找到指定版本
+                                        {
+                                            QJsonObject crcObj;
+                                            body = info;
+                                            st_client_file::Instance()->putInfo2Json(TB_CRC_VERSION_INFO_E, body, crcObj);
+                                            QJsonObject dataObj;
+                                            dataObj["SaveFilePath"] = info1.savePath;
+                                            dataObj["VersionInfo"] = crcObj;
+                                            dataObj["Custom"] = custom;
+                                            ackJsonObj["data"] = dataObj;
+                                            finded = true;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            else //兼容旧版本
+                            {
+                                foreach (BODY_CRC_VERSION_INFO_S info, infos2) {
+                                    if(info.custom == "" || info.custom.isEmpty() || info.custom == "STD") //定制类型匹配
+                                    {
+                                        QJsonObject crcObj;
+                                        body = info;
+                                        st_client_file::Instance()->putInfo2Json(TB_CRC_VERSION_INFO_E, body, crcObj);
+                                        QJsonObject dataObj;
+                                        dataObj["SaveFilePath"] = info1.savePath;
+                                        dataObj["VersionInfo"] = crcObj;
+                                        dataObj["Custom"] = "STD";
+                                        ackJsonObj["data"] = dataObj;
+                                        finded = true;
+                                        break;
+                                    }
+                                }
+                            }
                         }
-                        QJsonObject crcObj = currObj["CrcDefaultVersion"].toObject();
-                        QJsonObject dataObj;
-                        dataObj["SaveFilePath"] = currObj["SaveFilePath"];
-                        dataObj["VersionInfo"] = crcObj;
-                        ackJsonObj["data"] = dataObj;
-                        finded = true;
                     }
                     else if(fileType == "MCU")
                     {
-                        if(!currObj.contains("McuInfos"))
+                        QList<BODY_MCU_VERSION_INFO_S> infos2;
+                        body = infos2;
+                        QString queryStr = QString("product_name = \"%1\" AND is_default_version = TRUE").arg(productName);
+                        if(st_client_file::Instance()->queryDb(TB_MCU_VERSION_INFO_E, body, queryStr))
                         {
-                            ackJsonObj["code"] = BdProductMcuInfoParseError_E;
-                            ackJsonObj["msg"] = "The MCU information parsing error in the product information!";
-                            goto RESPONSE_END;
-                        }
-                        QJsonArray mcuTypeArray = currObj["McuInfos"].toArray();
-                        foreach (QJsonValue mcuTypeVal, mcuTypeArray) {
-                            QJsonObject mcuTypeObj = mcuTypeVal.toObject();
-                            if(!mcuTypeObj.contains("McuTypeName"))
-                                continue;
-                            if(mcuTypeObj["McuTypeName"].toString() == fileSubType)
-                            {
-                                if(!mcuTypeObj.contains("McuDefaultVersion"))
-                                {
-                                    ackJsonObj["code"] = BdProductMcuInfoParseError_E;
-                                    ackJsonObj["msg"] = "The MCU information parsing error in the product information!";
-                                    goto RESPONSE_END;
-                                }
-                                QJsonObject mcuObj = mcuTypeObj["McuDefaultVersion"].toObject();
-                                dataObj["SaveFilePath"] = currObj["SaveFilePath"];
+                            infos2 = boost::any_cast<QList<BODY_MCU_VERSION_INFO_S>>(body);
+                            foreach (BODY_MCU_VERSION_INFO_S info, infos2) {
+                                body = info;
+                                QJsonObject mcuObj;
+                                st_client_file::Instance()->putInfo2Json(TB_MCU_VERSION_INFO_E, body, mcuObj);
+                                dataObj["SaveFilePath"] = info1.savePath;
                                 dataObj["VersionInfo"] = mcuObj;
                                 ackJsonObj["data"] = dataObj;
                                 finded = true;
@@ -1036,18 +1339,22 @@ namespace ExampleServer{
                     }
                     else if(fileType == "GROUP")
                     {
-                        if(!currObj.contains("GroupFileDefaultVersion"))
+                        QList<BODY_GROUP_VERSION_INFO_S> infos2;
+                        body = infos2;
+                        QString queryStr = QString("product_name = \"%1\" AND is_default_version = TRUE").arg(productName);
+                        if(st_client_file::Instance()->queryDb(TB_GROUP_VERSION_INFO_E, body, queryStr))
                         {
-                            ackJsonObj["code"] = BdJsonParseError_E;
-                            ackJsonObj["msg"] = "The group file information parsing error in the product information!";
-                            goto RESPONSE_END;
+                            QJsonObject infosObj;
+                            st_client_file::Instance()->putInfos2Json(TB_GROUP_VERSION_INFO_E, body, infosObj);
+                            if(infosObj.size() > 0)
+                            {
+                                QJsonObject dataObj;
+                                dataObj["SaveFilePath"] =info1.savePath;
+                                dataObj["VersionInfo"] = infosObj[infosObj.keys().first()].toObject();
+                                ackJsonObj["data"] = dataObj;
+                                finded = true;
+                            }
                         }
-                        QJsonObject groupFileObj = currObj["GroupFileDefaultVersion"].toObject();
-
-                        dataObj["SaveFilePath"] = currObj["SaveFilePath"];
-                        dataObj["VersionInfo"] = groupFileObj;
-                        ackJsonObj["data"] = dataObj;
-                        finded = true;
                     }
                     if(finded)
                     {
@@ -1227,6 +1534,223 @@ namespace ExampleServer{
                     ackJsonObj["data"] = eventArray;
                     ackJsonObj["code"] = BdExecutionSucceeded_E;
                     ackJsonObj["msg"] = "Query client events successfully!";
+                }
+                    break;
+                case BdRequestAddLog_E:
+                {
+                    QJsonObject dataObj = jsonObj["data"].toObject();
+                    if(!dataObj.contains("ProductName") || !dataObj.contains("DevNumber") || !dataObj.contains("ImeiNumber") || !dataObj.contains("FwVersion")
+                            || !dataObj.contains("Type") || !dataObj.contains("Subtype")
+                            || !dataObj.contains("Result") || !dataObj.contains("DateTime") || !dataObj.contains("Message"))
+                    {
+                        ackJsonObj["code"] = BdJsonParseError_E;
+                        ackJsonObj["msg"] ="Json parse error!";
+                        goto RESPONSE_END;
+                    }
+
+
+                    BODY_LOG_INFO_S info;
+                    info.productName = dataObj["ProductName"].toString();
+                    info.devNumber = dataObj["DevNumber"].toString();
+                    info.imeiNumber = dataObj["ImeiNumber"].toString();
+                    info.fwVersion = dataObj["FwVersion"].toString();
+                    info.type = (GS_LOG_TYPE)dataObj["Type"].toInt();
+                    if(dataObj.contains("Subtype"))
+                        info.subtype = dataObj["Subtype"].toInt();
+                    else
+                        info.subtype = 0;
+                    info.result = (GS_LOG_RESULT)dataObj["Result"].toInt();
+                    info.dateTime = QDateTime::fromString(dataObj["DateTime"].toString(), "yyyy-MM-dd hh:mm:ss");
+                    info.message = dataObj["Message"].toString();
+                    if(st_client_file::Instance()->addLogDb(info))
+                    {
+                        ackJsonObj["code"] = BdExecutionSucceeded_E;
+                        ackJsonObj["msg"] = "Add log successfully!";
+                    }
+                    else
+                    {
+                        ackJsonObj["code"] = BdExecutionFailed_E;
+                        ackJsonObj["msg"] = "Add log failed!";
+                    }
+                }
+                    break;
+                case BdRequestQueryLog_E:
+                {
+                    QJsonObject dataObj = jsonObj["data"].toObject();
+                    if(!dataObj.contains("ProductName") || !dataObj.contains("DevNumber") || !dataObj.contains("ImeiNumber") || !dataObj.contains("FwVersion")
+                            || !dataObj.contains("Type")
+                            || !dataObj.contains("Result") || !dataObj.contains("StartDateTime")
+                            || !dataObj.contains("FuzzySearch") || !dataObj.contains("EndDateTime")
+                            || !dataObj.contains("PageNo") || !dataObj.contains("PageSize"))
+                    {
+                        ackJsonObj["code"] = BdJsonParseError_E;
+                        ackJsonObj["msg"] ="Json parse error!";
+                        goto RESPONSE_END;
+                    }
+
+                    BD_REQUEST_LOG_S info;
+                    info.productName = dataObj["ProductName"].toString();
+                    info.devNumber = dataObj["DevNumber"].toString();
+                    info.imeiNumber = dataObj["ImeiNumber"].toString();
+                    info.fwVersion = dataObj["FwVersion"].toString();
+                    info.type = (GS_LOG_TYPE)dataObj["Type"].toInt();
+                    if(dataObj.contains("Subtype"))
+                        info.subtype = dataObj["Subtype"].toInt();
+                    else
+                        info.subtype = 0;
+                    info.result = (GS_LOG_RESULT)dataObj["Result"].toInt();
+                    info.startDateTime = QDateTime::fromString(dataObj["StartDateTime"].toString(), "yyyy-MM-dd hh:mm:ss");
+                    info.endDateTime = QDateTime::fromString(dataObj["EndDateTime"].toString(), "yyyy-MM-dd hh:mm:ss");
+                    info.fuzzySearch = dataObj["FuzzySearch"].toBool();
+                    info.pageNo = dataObj["PageNo"].toInt();
+                    info.pageSize = dataObj["PageSize"].toInt();
+
+                    QString queryStr;
+                    QString specifyType;
+                    QString specifySubType;
+                    QString specifyResult;
+                    QString specifyDevNumber;
+                    QString specifyImeiNumber;
+                    QString specifyCurrentVersion;
+                    QString specifyDateTime;
+                    int subtypeMax;
+                    int resultMax;
+                    if(info.type == LOG_UPGRADE_E)
+                        subtypeMax = UPGRADE_TYPE_MAX;
+                    else if(info.type == LOG_DEV_MODULE_E)
+                        subtypeMax = DEV_MODULE_TYPE_MAX;
+                    else
+                        subtypeMax = 0;
+                    if(info.type == LOG_DEV_MODULE_E)
+                        resultMax = DEV_MODULE_STATUS_MAX;
+                    else
+                        resultMax = LOG_RESULT_MAX;
+                    if(info.type < LOG_TYPE_MAX)
+                        specifyType = QString(" type=%1 ").arg(info.type);
+                    if(info.subtype < subtypeMax)
+                        specifySubType = QString(" subtype=%1 ").arg(info.subtype);
+                    if(info.result < resultMax)
+                        specifyResult = QString(" result=%1 ").arg(info.result);
+
+                    if(info.devNumber.size() > 0)
+                    {
+                        if(info.fuzzySearch)
+                            specifyDevNumber = QString(" dev_number LIKE \"%%1%\" ").arg(info.devNumber);
+                        else
+                            specifyDevNumber = QString(" dev_number = \"%1\" ").arg(info.devNumber);
+                    }
+
+                    if(info.imeiNumber.size() > 0)
+                    {
+                        if(info.fuzzySearch)
+                            specifyImeiNumber =  QString(" imei_number LIKE \"%%1%\" ").arg(info.imeiNumber);
+                        else
+                            specifyImeiNumber = QString(" imei_number = \"%1\" ").arg(info.imeiNumber);
+                    }
+
+                    if(info.fwVersion.size() > 0)
+                    {
+                        if(info.fuzzySearch)
+                            specifyCurrentVersion =  QString(" fw_version LIKE \"%%1%\" ").arg(info.fwVersion);
+                        else
+                            specifyCurrentVersion = QString(" fw_version = \"%1\" ").arg(info.fwVersion);
+                    }
+                    if(info.productName == "ALL")
+                        specifyDateTime = QString(" date_time >= '%1' AND date_time <= '%2' ")
+                                .arg(dataObj["StartDateTime"].toString()).arg(dataObj["EndDateTime"].toString());
+                    else
+                        specifyDateTime = QString(" product_name = \"%1\" AND date_time >= '%2' AND date_time <= '%3' ")
+                                .arg(info.productName).arg(dataObj["StartDateTime"].toString()).arg(dataObj["EndDateTime"].toString());
+
+                    if(specifyType.size() > 0)
+                        queryStr += specifyType;
+                    if(specifyImeiNumber.size() > 0)
+                    {
+                        if(queryStr.size() > 0)
+                            queryStr += "AND" + specifyImeiNumber;
+                        else
+                            queryStr += specifyImeiNumber;
+                    }
+                    if(specifyCurrentVersion.size() > 0)
+                    {
+                        if(queryStr.size() > 0)
+                            queryStr += "AND" + specifyCurrentVersion;
+                        else
+                            queryStr += specifyCurrentVersion;
+                    }
+                    if(specifySubType.size() > 0)
+                    {
+                        if(queryStr.size() > 0)
+                            queryStr += "AND" + specifySubType;
+                        else
+                            queryStr += specifySubType;
+                    }
+                    if(specifyResult.size() > 0)
+                    {
+                        if(queryStr.size() > 0)
+                            queryStr += "AND" + specifyResult;
+                        else
+                            queryStr += specifyResult;
+                    }
+
+                    if(specifyDevNumber.size() > 0)
+                    {
+                        if(queryStr.size() > 0)
+                            queryStr += "AND" + specifyDevNumber;
+                        else
+                            queryStr += specifyDevNumber;
+                    }
+
+                    if(queryStr.size() > 0)
+                        queryStr += "AND" + specifyDateTime;
+                    else
+                        queryStr += specifyDateTime;
+                    qDebug() << __FUNCTION__ <<queryStr;
+                    QJsonObject ackObj;
+                    if(info.pageNo == 1)
+                    {
+                        int count = st_client_file::Instance()->queryLogMatchCountDb(info.devNumber, queryStr);
+                        if(count > 0)
+                        {
+                            ackObj["TotalCount"] = count;
+                        }
+                        else
+                        {
+                            ackJsonObj["code"] = BdExecutionFailed_E;
+                            ackJsonObj["msg"] = "No data found!";
+                            goto RESPONSE_END;
+                        }
+                    }
+
+
+
+                    QList<BODY_LOG_INFO_S> infos;
+                    GS_DB_BODY_C body = infos;
+                    if(!st_client_file::Instance()->queryLogDb(info.devNumber, body, queryStr, (info.pageNo-1) * info.pageSize, info.pageSize))
+                    {
+                        ackJsonObj["code"] = BdExecutionFailed_E;
+                        ackJsonObj["msg"] = "No data found!";
+                        goto RESPONSE_END;
+                    }
+                    QJsonArray infoArray;
+                    infos = boost::any_cast<QList<BODY_LOG_INFO_S>>(body);
+                    foreach (BODY_LOG_INFO_S info1, infos) {
+                        QJsonObject infoObj;
+                        infoObj["ProductName"] = info1.productName;
+                        infoObj["DevNumber"] = info1.devNumber;
+                        infoObj["ImeiNumber"] = info1.imeiNumber;
+                        infoObj["FwVersion"] = info1.fwVersion;
+                        infoObj["Type"] = info1.type;
+                        infoObj["Subtype"] = info1.subtype;
+                        infoObj["Result"] = info1.result;
+                        infoObj["DateTime"] = info1.dateTime.toString("yyyy-MM-dd hh:mm:ss");
+                        infoObj["Message"] = info1.message;
+                        infoArray << infoObj;
+                    }
+                    ackObj["Logs"] = infoArray;
+                    ackJsonObj["data"] = ackObj;
+                    ackJsonObj["code"] = BdExecutionSucceeded_E;
+                    ackJsonObj["msg"] = "Search log successfully!";
                 }
                     break;
                 }

@@ -30,6 +30,7 @@ CVersionInfo::CVersionInfo(QListWidgetItem *item,const VERSION_INFO_S &versionIn
     ui->BriefMessageLabel->setText(m_info.message);
     setDefaultVersion(m_info.isDefault);
     ui->MessageLabel->setText(m_info.message);
+    ui->MessageLabel->installEventFilter(this);
     ui->MessageGroupBox->hide();
     QSize size = m_item->sizeHint();
     size.setHeight(42);
@@ -39,6 +40,15 @@ CVersionInfo::CVersionInfo(QListWidgetItem *item,const VERSION_INFO_S &versionIn
 CVersionInfo::~CVersionInfo()
 {
     delete ui;
+}
+
+bool CVersionInfo::eventFilter(QObject *o, QEvent *e)
+{
+    if(o == ui->MessageLabel && e->type()==QEvent::MouseButtonPress)
+    {
+        m_item->setSelected(true);
+    }
+    return QFrame::eventFilter(o, e);
 }
 
 void CVersionInfo::setDefaultVersion(bool isDefault)

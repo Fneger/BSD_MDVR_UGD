@@ -15,11 +15,14 @@
 #include "st_clientnode_basetrans.h"
 #include "zp_tcpserver.h"
 #include "zp_clusterterm.h"
+#include "databasetool.h"
+#include "st_client_file.h"
 #include <QDir>
 
 using namespace ZPNetwork;
 using namespace ZPTaskEngine;
 using namespace ZP_Cluster;
+using namespace ZPDatabase;
 
 extern quint64 g_bytesRecieved;
 extern quint64 g_bytesSent;
@@ -35,7 +38,7 @@ ZPMainFrame::ZPMainFrame(QWidget *parent)
     dir.mkdir("./version");
     dir.mkdir("./device_file");
 
-    m_currentConfigFile = QCoreApplication::applicationFilePath()+".ini";
+    m_currentConfigFile = "config.ini";
     ui->setupUi(this);
     //Create net engine
     m_netEngine = new zp_net_Engine (DATA_PAYLOAD);
@@ -61,6 +64,8 @@ ZPMainFrame::ZPMainFrame(QWidget *parent)
                                                     m_pClusterTerm,
                                                     this);
     connect (m_clientTable,&ExampleServer::st_client_table::evt_Message,this,&ZPMainFrame::on_evt_Message_Smartlink);
+
+    st_client_file::Instance()->setClientTable(m_clientTable);
 
     m_nTimerId = startTimer(2000);
     m_nTimerCheck =  startTimer(10000);
@@ -263,7 +268,8 @@ void ZPMainFrame::forkServer(QString  config_file)
     bool bSSL = false;
     QString localHostName = QHostInfo::localHostName();
     QHostAddress listen_address (localHostName) ;
-    m_netEngine->AddListeningAddress("UGD Client",listen_address,25600,bSSL);
+    int listenPort = settings.value("settings/nListenPort",25600).toInt();
+    m_netEngine->AddListeningAddress("UGD Client",listen_address,listenPort,bSSL);
     //read thread config
     int nSSLThreads = settings.value("settings/nSSLThreads",0).toInt();
     int nPlainThreads = settings.value("settings/nPlainThreads",8).toInt();
@@ -289,21 +295,21 @@ void ZPMainFrame::forkServer(QString  config_file)
 
     //database connections
     m_pDatabases->remove_connections();
-    int nDBConns = settings.value("settings/dbresources",0).toInt();
+    int nDBConns = settings.value("settings/dbresources",1).toInt();
     if (nDBConns>=1024)
         nDBConns = 1024;
     for (int i=0;i<nDBConns;i++)
     {
         QString keyPrefix = QString ("dbres%1/").arg(i);
-        QString db_name = settings.value(keyPrefix+"name","").toString();
-        QString db_type = settings.value(keyPrefix+"type","").toString();
-        QString db_Address = settings.value(keyPrefix+"addr","").toString();
-        int nPort = settings.value(keyPrefix+"port",0).toInt();
-        QString db_Schema = settings.value(keyPrefix+"schema","").toString();
-        QString db_User = settings.value(keyPrefix+"user","").toString();
-        QString db_Pass = settings.value(keyPrefix+"pass","").toString();
+        QString db_name = settings.value(keyPrefix+"name","test").toString();
+        QString db_type = settings.value(keyPrefix+"type","QMYSQL").toString();
+        QString db_Address = settings.value(keyPrefix+"addr","139.159.193.74").toString();
+        int nPort = settings.value(keyPrefix+"port",3306).toInt();
+        QString db_Schema = settings.value(keyPrefix+"schema","mysql").toString();
+        QString db_User = settings.value(keyPrefix+"user","root").toString();
+        QString db_Pass = settings.value(keyPrefix+"pass","GEM456123star").toString();
         QString db_Extra =  settings.value(keyPrefix+"extra","").toString();
-        QString db_testSQL =  settings.value(keyPrefix+"testSql","").toString();
+        QString db_testSQL =  settings.value(keyPrefix+"testSql","show databases;").toString();
         if (db_name.length()<1 )
             continue;
         if (db_type.length()<1)
@@ -323,6 +329,8 @@ void ZPMainFrame::forkServer(QString  config_file)
 
     QString strSLDB_useracc = settings.value("Smartlink/SLDB_useracc","EMPTY").toString();
     m_clientTable->setDatabase_UserAcct(strSLDB_useracc);
+    st_client_file::Instance()->syncJson2Database();
+
 
     QString strSLDB_mainEvent = settings.value("Smartlink/SLDB_mainEvt","EMPTY").toString();
     m_clientTable->setDatabase_Event(strSLDB_mainEvent);

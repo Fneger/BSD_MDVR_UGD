@@ -69,7 +69,7 @@ namespace ZPDatabase{
 		QMutex m_mutex_reg;
 		QMap <QString,tagConnectionPara> m_dbNames;					//Each Main connection Name, and their connection para
 		QMap <QString, QSet<QString> > m_ThreadsDB;					//Each Main connection Name, and theri thread-owned names
-		QMap <QThread * , QMap<QString,QDateTime> > m_ThreadOwnedMainDBs;		//Each Thread owns Main connection Names.
+        QMap <QThread * , QMap<QString,QDateTime> > m_ThreadOwnedMainDBs;		//Each Thread owns Main connection Names.
 		void RemoveTreadsConnections(QString mainName);
 	signals:
 		void evt_Message(QObject *,QString );

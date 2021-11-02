@@ -5,7 +5,9 @@
 #include "ctcpclient.h"
 #include <QMessageBox>
 #include <QTimer>
+#include "st_global_def.h"
 
+using namespace GsGlobalDef;
 CTcpClientTest::CTcpClientTest(QObject *parent) : CMyThread(parent)
 {
     m_currNewUUID = 20000;
@@ -49,7 +51,14 @@ void CTcpClientTest::run()
                     if(!client->sendTestPacket(rand()%2048))
                     {
                         client->stopTest();
-                        QMessageBox::warning(nullptr,tr("Test Error"),QString("client %1 test error!").arg(client->uuid(),16,16,QChar('0')));
+                        qWarning() << QString("client %1 test error!").arg(client->uuid(),16,16,QChar('0'));
+                    }
+                    if(CCommon::Instance()->AddLog2Db(client,"ZH510", QString::number(rand() % 1024), "000000", "DVR-T21110194-ZH510.6550-ENG-BD.crc",
+                                                      LOG_DEV_MODULE_E, DEV_MODULE_4G_E, DEV_MODULE_ABNORMAL_E,
+                                                      "Dialing failed!"))
+                    {
+                        client->stopTest();
+                        qWarning() << QString("client %1 test add log!").arg(client->uuid(),16,16,QChar('0'));
                     }
                 }
             }
@@ -80,7 +89,7 @@ void CTcpClientTest::run()
             m_clients[m_currNewUUID] = client;
             client->startClient();
         }
-        msleep(100);
+        msleep(1000);
     }
     QList<CTcpClient*> listObj = m_clients.values();
     foreach(CTcpClient * client,listObj)

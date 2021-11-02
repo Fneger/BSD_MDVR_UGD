@@ -21,6 +21,7 @@ public:
     QString productName()const { return m_producuInfo.productName; }
     const PRODUCT_INFO_S &productInfo();
     void setProductInfo(const PRODUCT_INFO_S &info);
+    void refreshInfo();
 
 signals:
     void evt_ShowTipsProgressBar(int totalValue,int currValue);
@@ -62,6 +63,14 @@ private slots:
     void on_RemoveFileBtn_clicked();
 
     void on_GroupFileListWidget_currentRowChanged(int currentRow);
+
+    void on_CustomDesignCmBox_currentIndexChanged(int index);
+
+    void on_AddCustomDesignBtn_clicked();
+
+    void on_RemoveCustomDesignBtn_clicked();
+
+    void on_RefreshBtn_clicked();
 
 private:
     void hintSelectVersion();

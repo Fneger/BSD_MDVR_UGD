@@ -2,6 +2,7 @@
 #define CVERSIONINFO_H
 
 #include <QFrame>
+#include <QEvent>
 #include "st_message.h"
 
 
@@ -24,6 +25,9 @@ public:
 
 private slots:
     void on_DetailBtn_clicked();
+
+private:
+    bool eventFilter(QObject *o, QEvent *e);
 
 private:
     Ui::CVersionInfo *ui;

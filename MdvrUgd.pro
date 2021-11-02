@@ -1,5 +1,5 @@
 TEMPLATE = subdirs
 
 SUBDIRS += \
-    UgdAppClient \
-    UgdServer
+    UgdServer \
+    UgdAppClient

@@ -543,16 +543,6 @@ bool CTcpClient::proxyCall(BD_JSON_REQUEST_CODE_E nCode, void *data, QJsonDocume
     CCommon *pCommon = CCommon::Instance();
     jsonObj["RequestCode"] = nCode;
     switch (nCode) {
-    case BdRequestDeleteProductInfo_E:
-    case BdRequestAddProductInfo_E:
-    case BdRequestAddMcuType_E:
-    case BdRequestRemoveMcuVersion_E:
-    case BdRequestAddNewMcuVersion_E:
-    case BdRequestRemoveCrcVersion_E:
-    case BdRequestAddNewCrcVersion_E:
-    case BdRequestSetDefaultCrcVersion_E:
-    case BdRequestSetDefaultMcuVersion_E:
-    case BdRequestAddOtherFileVersion_E:
     case BdRequestSaveProductInfo_E:
     {
         PRODUCT_INFO_S *pInfo = (PRODUCT_INFO_S*)data;
@@ -643,6 +633,74 @@ bool CTcpClient::proxyCall(BD_JSON_REQUEST_CODE_E nCode, void *data, QJsonDocume
         }
     }
         break;
+    case BdRequestDeleteProductInfo_E:
+    {
+        BD_REQUEST_CRC_S *pInfo = (BD_REQUEST_CRC_S*)data;
+        dataObj["ProductName"] = pInfo->productName;
+    }
+        break;
+    case BdRequestSetDefaultCrcVersion_E:
+    case BdRequestAddNewCrcVersion_E:
+    case BdRequestRemoveCrcVersion_E:
+    {
+        BD_REQUEST_CRC_S *pInfo = (BD_REQUEST_CRC_S*)data;
+        dataObj["ProductName"] = pInfo->productName;
+        pCommon->PutVersionInfo(pInfo->verInfo,dataObj);
+    }
+        break;
+    case BdRequestAddMcuType_E:
+    {
+        BD_REQUEST_MCU_S *pInfo = (BD_REQUEST_MCU_S*)data;
+        dataObj["ProductName"] = pInfo->productName;
+        dataObj["McuTypeName"] = pInfo->mcuTypeName;
+    }
+        break;
+    case BdRequestAddNewMcuVersion_E:
+    {
+        BD_REQUEST_MCU_S *pInfo = (BD_REQUEST_MCU_S*)data;
+        if(pInfo->productName.length() <= 0)
+            return false;
+        dataObj["ProductName"] = pInfo->productName;
+        dataObj["McuTypeName"] = pInfo->mcuTypeName;
+        pCommon->PutVersionInfo(pInfo->verInfo,dataObj);
+    }
+        break;
+    case BdRequestSetDefaultMcuVersion_E:
+    {
+        BD_REQUEST_MCU_S *body = (BD_REQUEST_MCU_S*)data;
+        dataObj["ProductName"]  = body->productName;
+        dataObj["McuTypeName"] = body->mcuTypeName;
+        pCommon->PutVersionInfo(body->verInfo,dataObj);
+    }
+        break;
+    case BdRequestAddProductInfo_E:
+    {
+        PRODUCT_INFO_S *pInfo = (PRODUCT_INFO_S*)data;
+        if(pInfo->productName.length() <= 0 || pInfo->saveFilePath.length() <= 0)
+            return false;
+        dataObj["ProductName"] = pInfo->productName;
+        dataObj["ProductTypeId"] = QString::number(pInfo->productTypeId);
+        dataObj["Date"] = pInfo->date;
+        dataObj["ProductDesp"] = pInfo->productDesp;
+        dataObj["SaveFilePath"] = pInfo->saveFilePath;
+    }
+        break;
+    case BdRequestAddFileToGroupFile_E:
+    {
+        BD_REQUEST_GROUP_S *pInfo = (BD_REQUEST_GROUP_S*)data;
+        if(pInfo->productName.length() <= 0 || pInfo->savePath.length() <= 0)
+            return false;
+        dataObj["ProductName"] = pInfo->productName;
+        dataObj["Name"] = pInfo->name;
+        dataObj["Date"] = pInfo->date;
+        dataObj["SavePath"] = pInfo->savePath;
+        dataObj["Message"] = pInfo->message;
+        dataObj["IsDefault"] = pInfo->isDefault;
+        QJsonObject fileObj;
+        pCommon->PutVersionInfo(pInfo->verInfo, fileObj);
+        dataObj["FileInfo"] = fileObj;
+    }
+        break;
     case BdRequestStopDownloadFile_E:
     case BdRequestStopUploadFile_E:
     case BdRequestQueryProductList_E:
@@ -670,9 +728,17 @@ bool CTcpClient::proxyCall(BD_JSON_REQUEST_CODE_E nCode, void *data, QJsonDocume
         break;
     case BdRequestRemoveMcuType_E:
     {
-        BD_REQUEST_REMOVE_MCU_S *body = (BD_REQUEST_REMOVE_MCU_S*)data;
+        BD_REQUEST_MCU_S *body = (BD_REQUEST_MCU_S*)data;
         dataObj["ProductName"]  = body->productName;
         dataObj["McuTypeName"] = body->mcuTypeName;
+    }
+        break;
+    case BdRequestRemoveMcuVersion_E:
+    {
+        BD_REQUEST_MCU_S *body = (BD_REQUEST_MCU_S*)data;
+        dataObj["ProductName"]  = body->productName;
+        dataObj["McuTypeName"] = body->mcuTypeName;
+        pCommon->PutVersionInfo(body->verInfo,dataObj);
     }
         break;
     case BdRequestRemoveGroupFile_E:
@@ -680,22 +746,68 @@ bool CTcpClient::proxyCall(BD_JSON_REQUEST_CODE_E nCode, void *data, QJsonDocume
     {
         BD_REQUEST_EDIT_GROUP_FILE_S *body = (BD_REQUEST_EDIT_GROUP_FILE_S*)data;
         dataObj["ProductName"]  = body->productName;
-        QJsonObject groupFileObj;
-        groupFileObj["Name"] = body->groupFileInfo.name;
-        groupFileObj["Date"] = body->groupFileInfo.date;
-        groupFileObj["SavePath"] = body->groupFileInfo.savePath;
-        groupFileObj["Message"] = body->groupFileInfo.message;
-        groupFileObj["IsDefault"] = body->groupFileInfo.isDefault;
-        QJsonArray fileArray;
-        QMapIterator<QString,VERSION_INFO_S> groupFileIter(body->groupFileInfo.fileInfos);
-        while (groupFileIter.hasNext()) {
-            groupFileIter.next();
-            QJsonObject fileObj;
-            pCommon->PutVersionInfo(groupFileIter.value(),fileObj);
-            fileArray << fileObj;
-        }
-        groupFileObj["FileInfos"] = fileArray;
-        dataObj["GroupFileInfo"] = groupFileObj;
+        dataObj["Name"] = body->groupFileInfo.name;
+        dataObj["Date"] = body->groupFileInfo.date;
+        dataObj["SavePath"] = body->groupFileInfo.savePath;
+        dataObj["Message"] = body->groupFileInfo.message;
+        dataObj["IsDefault"] = body->groupFileInfo.isDefault;
+//        QJsonArray fileArray;
+//        QMapIterator<QString,VERSION_INFO_S> groupFileIter(body->groupFileInfo.fileInfos);
+//        while (groupFileIter.hasNext()) {
+//            groupFileIter.next();
+//            QJsonObject fileObj;
+//            pCommon->PutVersionInfo(groupFileIter.value(),fileObj);
+//            fileArray << fileObj;
+//        }
+//        groupFileObj["FileInfos"] = fileArray;
+//        dataObj["GroupFileInfo"] = groupFileObj;
+    }
+        break;
+    case BdRequestRemoveFilesFromGroupFile_E:
+    {
+        BD_REQUEST_GROUP_S *body = (BD_REQUEST_GROUP_S*)data;
+        dataObj["ProductName"]  = body->productName;
+        dataObj["Name"] = body->name;
+        dataObj["SubFileName"] = body->verInfo.name;
+    }
+        break;
+    case BdRequestSetDefaultGroupFileVersion_E:
+    {
+        BD_REQUEST_GROUP_S *body = (BD_REQUEST_GROUP_S*)data;
+        dataObj["ProductName"]  = body->productName;
+        dataObj["Name"] = body->name;
+        dataObj["SubFileName"] = body->verInfo.name;
+    }
+        break;
+    case BdRequestAddLog_E:
+    {
+        BD_REQUEST_LOG_S *body = (BD_REQUEST_LOG_S*)data;
+        dataObj["ProductName"] = body->productName;
+        dataObj["DevNumber"] = body->devNumber;
+        dataObj["ImeiNumber"] = body->imeiNumber;
+        dataObj["FwVersion"] = body->fwVersion;
+        dataObj["Type"] = body->type;
+        dataObj["Subtype"] = body->subtype;
+        dataObj["Result"] = body->result;
+        dataObj["DateTime"] = body->dateTime.toString("yyyy-MM-dd hh:mm:ss");
+        dataObj["Message"] = body->message;
+    }
+        break;
+    case BdRequestQueryLog_E:
+    {
+        BD_REQUEST_LOG_S *body = (BD_REQUEST_LOG_S*)data;
+        dataObj["ProductName"] = body->productName;
+        dataObj["DevNumber"] = body->devNumber;
+        dataObj["ImeiNumber"] = body->imeiNumber;
+        dataObj["FwVersion"] = body->fwVersion;
+        dataObj["Type"] = body->type;
+        dataObj["Subtype"] = body->subtype;
+        dataObj["Result"] = body->result;
+        dataObj["StartDateTime"] = body->startDateTime.toString("yyyy-MM-dd hh:mm:ss");
+        dataObj["EndDateTime"] = body->endDateTime.toString("yyyy-MM-dd hh:mm:ss");
+        dataObj["FuzzySearch"] = body->fuzzySearch;
+        dataObj["PageNo"] = body->pageNo;
+        dataObj["PageSize"] = body->pageSize;
     }
         break;
     case BdRequestEditUser_E:

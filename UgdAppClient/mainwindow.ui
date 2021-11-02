@@ -65,6 +65,7 @@
    <addaction name="action_RefreshProductInfo"/>
    <addaction name="action_Events"/>
    <addaction name="action_Administrator"/>
+   <addaction name="action_LogSearch"/>
   </widget>
   <action name="action_ClientTest">
    <property name="checkable">
@@ -152,6 +153,18 @@
    </property>
    <property name="toolTip">
     <string>Events</string>
+   </property>
+  </action>
+  <action name="action_LogSearch">
+   <property name="icon">
+    <iconset theme="lo_search" resource="images.qrc">
+     <normaloff>:/images/log_search.png</normaloff>:/images/log_search.png</iconset>
+   </property>
+   <property name="text">
+    <string>&amp;LogSearch</string>
+   </property>
+   <property name="toolTip">
+    <string>Log Search</string>
    </property>
   </action>
  </widget>

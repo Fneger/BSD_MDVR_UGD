@@ -12,6 +12,7 @@
 #include "caddgroupfiledlg.h"
 #include "cgroupfileitem.h"
 #include "mainwindow.h"
+#include "CHintWidget.h"
 
 CProductVersionInfo::CProductVersionInfo(CTcpClient *pTcpClient, const QString &sName, QWidget *parent) :
     QWidget(parent),
@@ -27,6 +28,10 @@ CProductVersionInfo::CProductVersionInfo(CTcpClient *pTcpClient, const QString &
     m_producuInfo.saveFilePath = QString("./version/%1/").arg(sName);
     ui->AddMcuTypeBtn->hide();
     ui->RemoveMcuTypeBtn->hide();
+    ui->AddMcuTypeBtn->setVisible(false);
+    ui->RemoveMcuTypeBtn->setVisible(false);
+    ui->AddCustomDesignBtn->setVisible(false);
+    ui->RemoveCustomDesignBtn->setVisible(false);
 }
 
 CProductVersionInfo::~CProductVersionInfo()
@@ -56,10 +61,21 @@ void CProductVersionInfo::setProductInfo(const PRODUCT_INFO_S &info)
 
     ui->ProductNameLabel->setText(info.productName);
     ui->MessageLabel->setText(info.productDesp);
+
+    ui->CustomDesignCmBox->clear();
+    QStringList customs;
     foreach (VERSION_INFO_S info, m_producuInfo.crcVersionList) {
-        QListWidgetItem *item = new QListWidgetItem(info.name);
-        ui->CrcVersionListWidget->addItem(item);
-        ui->CrcVersionListWidget->setItemWidget(item,new CVersionInfo(item,info,this));
+        if(!customs.contains(info.custom))
+        {
+            customs << info.custom;
+            ui->CustomDesignCmBox->addItem(info.custom);
+        }
+        if(info.custom == customs.first())
+        {
+            QListWidgetItem *item = new QListWidgetItem(info.name);
+            ui->CrcVersionListWidget->addItem(item);
+            ui->CrcVersionListWidget->setItemWidget(item,new CVersionInfo(item,info,this));
+        }
     }
     ui->CrcVersionListWidget->sortItems();
 
@@ -99,6 +115,11 @@ void CProductVersionInfo::setProductInfo(const PRODUCT_INFO_S &info)
     m_bIsLoading = false;
 }
 
+void CProductVersionInfo::refreshInfo()
+{
+    on_RefreshBtn_clicked();
+}
+
 void CProductVersionInfo::hintSelectVersion()
 {
     QMessageBox::warning(this,tr("Version Operation"),tr("Please select the corresponding version!"));
@@ -115,10 +136,14 @@ bool CProductVersionInfo::addMcuType(const MCU_INFO_S &mcuInfo)
 
     QJsonDocument ackDoc;
     PRODUCT_INFO_S body = m_producuInfo;
+    body.productName = m_producuInfo.productName;
     body.mcuInfos[mcuInfo.mcuTypeName] = mcuInfo;
-    if(m_tcpClient->proxyCall(BdRequestAddMcuType_E,&body,ackDoc))
+    BD_REQUEST_MCU_S mcuBody;
+    mcuBody.productName = m_producuInfo.productName;
+    mcuBody.mcuTypeName = mcuInfo.mcuTypeName;
+    if(m_tcpClient->proxyCall(BdRequestAddMcuType_E,&mcuBody,ackDoc))
     {
-        m_producuInfo = body;
+        m_producuInfo.mcuInfos[mcuInfo.mcuTypeName] = mcuInfo;
         ui->McuTypeNameCmBox->addItem(mcuInfo.mcuTypeName);
         ui->McuTypeNameCmBox->setCurrentText(mcuInfo.mcuTypeName);
         res = true;
@@ -132,7 +157,7 @@ bool CProductVersionInfo::removeMcuType(const MCU_INFO_S &mcuInfo)
 {
     bool res = false;
     QJsonDocument ackDoc;
-    BD_REQUEST_REMOVE_MCU_S body;
+    BD_REQUEST_MCU_S body;
     body.productName = m_producuInfo.productName;
     body.mcuTypeName = mcuInfo.mcuTypeName;
     if(m_tcpClient->proxyCall(BdRequestRemoveMcuType_E,&body,ackDoc))
@@ -185,7 +210,7 @@ bool CProductVersionInfo::addFileToGroup(const QString &fileName)
 
         QListWidgetItem *item = ui->GroupFileListWidget->currentItem();
         CGroupFileItem *pGroup = (CGroupFileItem*)ui->GroupFileListWidget->itemWidget(item);
-        GROUP_FILE_INFO_S gorupInfo = pGroup->info();
+        GROUP_FILE_INFO_S groupInfo = pGroup->info();
         QFileInfo fileInfo(fileName);
         VERSION_INFO_S info;
         info.name = fileInfo.fileName();
@@ -194,21 +219,28 @@ bool CProductVersionInfo::addFileToGroup(const QString &fileName)
         info.fileSize = fileInfo.size();
         info.isDefault = false;
 
-        if(m_producuInfo.groupFileInfos[gorupInfo.name].fileInfos.contains(info.name))
+        if(m_producuInfo.groupFileInfos[groupInfo.name].fileInfos.contains(info.name))
         {
             QMessageBox::information(this,tr("Add File"),tr("Adding failed, the file already exists!"));
             return res;
         }
         setButtonsEnable(false);
-        if(MainWindow::Instance()->uploadFile(fileName,gorupInfo.savePath,info.name))
+        if(MainWindow::Instance()->uploadFile(fileName,groupInfo.savePath,info.name))
         {
-            gorupInfo.fileInfos[info.name] = info;
+            groupInfo.fileInfos[info.name] = info;
             PRODUCT_INFO_S body = m_producuInfo;
-            body.groupFileInfos[gorupInfo.name] = gorupInfo;
-            if(gorupInfo.isDefault)
-                body.groupFileDefaultVersion = gorupInfo;
+            body.productName = m_producuInfo.productName;
+            body.groupFileInfos[groupInfo.name] = groupInfo;
             QJsonDocument ackDoc;
-            if(m_tcpClient->proxyCall(BdRequestSaveProductInfo_E,&body,ackDoc))
+            BD_REQUEST_GROUP_S groupBody;
+            groupBody.productName = m_producuInfo.productName;
+            groupBody.name = groupInfo.name;
+            groupBody.date = groupInfo.date;
+            groupBody.savePath = groupInfo.savePath;
+            groupBody.message = groupInfo.message;
+            groupBody.isDefault = groupInfo.isDefault;
+            groupBody.verInfo = info;
+            if(m_tcpClient->proxyCall(BdRequestAddFileToGroupFile_E,&groupBody,ackDoc))
             {
                 QListWidgetItem *item = new QListWidgetItem(info.name);
                 ui->FileListWidget->insertItem(0,item);
@@ -216,13 +248,17 @@ bool CProductVersionInfo::addFileToGroup(const QString &fileName)
                 ui->FileListWidget->setCurrentItem(item);
                 ui->FileListWidget->sortItems();
                 m_producuInfo = body;
-                pGroup->setInfo(gorupInfo);
+                body.groupFileInfos[groupInfo.name] = groupInfo;
+                if(groupInfo.isDefault)
+                    body.groupFileDefaultVersion = groupInfo;
+                m_producuInfo = body;
+                pGroup->setInfo(groupInfo);
                 res = true;
             }
             else
             {
                 BD_REQUEST_DELETE_FILE_S body;
-                body.fileFullPath = gorupInfo.savePath + info.name;
+                body.fileFullPath = groupInfo.savePath + info.name;
                 QJsonDocument ackDoc;
                 if(!m_tcpClient->proxyCall(BdRequestDeleteFile_E,&body,ackDoc))
                 {
@@ -247,14 +283,14 @@ bool CProductVersionInfo::removeFileFromGroup(int index)
     {
         QListWidgetItem *item = ui->GroupFileListWidget->currentItem();
         CGroupFileItem *pGroup = (CGroupFileItem*)ui->GroupFileListWidget->itemWidget(item);
-        GROUP_FILE_INFO_S gorupInfo = pGroup->info();
+        GROUP_FILE_INFO_S groupInfo = pGroup->info();
 
         QListWidgetItem *fileItem = ui->FileListWidget->item(index);
         CVersionInfo *pVersion = (CVersionInfo*)ui->FileListWidget->itemWidget(fileItem);
         VERSION_INFO_S vInfo = pVersion->versionInfo();
         {
             BD_REQUEST_DELETE_FILE_S body;
-            body.fileFullPath = gorupInfo.savePath + vInfo.fileName;
+            body.fileFullPath = groupInfo.savePath + vInfo.fileName;
             QJsonDocument ackDoc;
             if(!m_tcpClient->proxyCall(BdRequestDeleteFile_E,&body,ackDoc))
             {
@@ -262,17 +298,21 @@ bool CProductVersionInfo::removeFileFromGroup(int index)
                 return res;
             }
         }
-        gorupInfo.fileInfos.remove(vInfo.name);
+        groupInfo.fileInfos.remove(vInfo.name);
         PRODUCT_INFO_S body = m_producuInfo;
-        body.groupFileInfos[gorupInfo.name] = gorupInfo;
-        if(gorupInfo.isDefault)
-            body.groupFileDefaultVersion = gorupInfo;
+        body.groupFileInfos[groupInfo.name] = groupInfo;
+        if(groupInfo.isDefault)
+            body.groupFileDefaultVersion = groupInfo;
         QJsonDocument ackDoc;
-        if(m_tcpClient->proxyCall(BdRequestSaveProductInfo_E,&body,ackDoc))
+        BD_REQUEST_GROUP_S groupBody;
+        groupBody.productName = m_producuInfo.productName;
+        groupBody.name = groupInfo.name;
+        groupBody.verInfo = vInfo;
+        if(m_tcpClient->proxyCall(BdRequestRemoveFilesFromGroupFile_E,&groupBody,ackDoc))
         {
             CCommon::Instance()->RemoveItem(ui->FileListWidget,index);
             m_producuInfo = body;
-            pGroup->setInfo(gorupInfo);
+            pGroup->setInfo(groupInfo);
         }
         else
             QMessageBox::warning(this,tr("Remove File"),tr("Failed to remove file from group!"));
@@ -303,7 +343,10 @@ void CProductVersionInfo::on_SetCrcDefaultVersionBtn_clicked()
         body.crcDefaultVersion = versionList[editName];
         body.crcVersionList = versionList;
         QJsonDocument ackDoc;
-        if(m_tcpClient->proxyCall(BdRequestSetDefaultCrcVersion_E,&body,ackDoc))
+        BD_REQUEST_CRC_S crcBody;
+        crcBody.productName = m_producuInfo.productName;
+        crcBody.verInfo = versionList[editName];
+        if(m_tcpClient->proxyCall(BdRequestSetDefaultCrcVersion_E,&crcBody,ackDoc))
         {
             int count = ui->CrcVersionListWidget->count();
             QListWidgetItem *item;
@@ -367,16 +410,26 @@ void CProductVersionInfo::on_AddNewCrcVersionBtn_clicked()
             return;
         }
         setButtonsEnable(true);
-
-        if(m_tcpClient->proxyCall(BdRequestAddNewCrcVersion_E,&body,ackDoc)) //添加成功后，上传升级包
+        BD_REQUEST_CRC_S crcBody;
+        crcBody.productName = m_producuInfo.productName;
+        crcBody.verInfo = vInfo;
+        if(m_tcpClient->proxyCall(BdRequestAddNewCrcVersion_E,&crcBody,ackDoc)) //添加成功后，上传升级包
         {
-
-            QListWidgetItem *item = new QListWidgetItem(vInfo.name);
-            ui->CrcVersionListWidget->insertItem(0,item);
-            ui->CrcVersionListWidget->setItemWidget(item,new CVersionInfo(item,vInfo,this));
-            ui->CrcVersionListWidget->setCurrentItem(item);
-            ui->CrcVersionListWidget->sortItems();
+            QString currCustom = ui->CustomDesignCmBox->currentText();
             m_producuInfo = body;
+            if(vInfo.custom != currCustom)
+            {
+                ui->CustomDesignCmBox->addItem(vInfo.custom);
+                ui->CustomDesignCmBox->setCurrentText(vInfo.custom);
+            }
+            else
+            {
+                QListWidgetItem *item = new QListWidgetItem(vInfo.name);
+                ui->CrcVersionListWidget->insertItem(0,item);
+                ui->CrcVersionListWidget->setItemWidget(item,new CVersionInfo(item,vInfo,this));
+                ui->CrcVersionListWidget->setCurrentItem(item);
+                ui->CrcVersionListWidget->sortItems();
+            }
         }
     }
 }
@@ -422,10 +475,17 @@ void CProductVersionInfo::on_DeleteSelectedCrcVersionBtn_clicked()
         }
         body.crcVersionList.remove(removeInfo.name);
         QJsonDocument ackDoc;
-        if(m_tcpClient->proxyCall(BdRequestRemoveCrcVersion_E,&body,ackDoc))
+        BD_REQUEST_CRC_S crcBody;
+        crcBody.productName = m_producuInfo.productName;
+        crcBody.verInfo = removeInfo;
+        if(m_tcpClient->proxyCall(BdRequestRemoveCrcVersion_E,&crcBody,ackDoc))
         {
             CCommon::Instance()->RemoveItem(ui->CrcVersionListWidget,index);
             m_producuInfo = body;
+            if(ui->CrcVersionListWidget->count() == 0)
+            {
+                ui->CustomDesignCmBox->removeItem(ui->CustomDesignCmBox->currentIndex());
+            }
         }
         else
             QMessageBox::warning(this,tr("Remove Version"),tr("Failed to remove version!"));
@@ -515,8 +575,12 @@ void CProductVersionInfo::on_SetMcuDefaultVersionBtn_clicked()
         PRODUCT_INFO_S body = m_producuInfo;
         body.mcuInfos[mcuTypeName].mcuDefaultVersion = mcuInfo;
         body.mcuInfos[mcuTypeName].mcuVersionList = versionList;
+        BD_REQUEST_MCU_S mcuBody;
+        mcuBody.productName = m_producuInfo.productName;
+        mcuBody.mcuTypeName = mcuTypeName;
+        mcuBody.verInfo = mcuInfo;
         QJsonDocument ackDoc;
-        if(m_tcpClient->proxyCall(BdRequestSetDefaultMcuVersion_E,&body,ackDoc))
+        if(m_tcpClient->proxyCall(BdRequestSetDefaultMcuVersion_E,&mcuBody,ackDoc))
         {
             int count = ui->McuVersionListWidget->count();
             QListWidgetItem *item;
@@ -594,8 +658,11 @@ void CProductVersionInfo::on_AddNewMcuVersionBtn_clicked()
 
         PRODUCT_INFO_S body = m_producuInfo;
         body.mcuInfos[mcuTypeName].mcuVersionList[vInfo.name] = vInfo;
-
-        if(m_tcpClient->proxyCall(BdRequestAddNewMcuVersion_E,&body,ackDoc)) //添加成功后，上传升级包
+        BD_REQUEST_MCU_S mcuBody;
+        mcuBody.productName = m_producuInfo.productName;
+        mcuBody.mcuTypeName = mcuTypeName;
+        mcuBody.verInfo = vInfo;
+        if(m_tcpClient->proxyCall(BdRequestAddNewMcuVersion_E,&mcuBody,ackDoc)) //添加成功后，上传升级包
         {
             QListWidgetItem *item = new QListWidgetItem();
             ui->McuVersionListWidget->insertItem(0,item);
@@ -651,8 +718,13 @@ void CProductVersionInfo::on_DeleteSelectedMcuVersionBtn_clicked()
         }
         mcuInfo.mcuVersionList.remove(removeInfo.name);
         body.mcuInfos[mcuType] = mcuInfo;
+
+        BD_REQUEST_MCU_S mcuBody;
+        mcuBody.productName = m_producuInfo.productName;
+        mcuBody.mcuTypeName = mcuType;
+        mcuBody.verInfo.name = removeInfo.name;
         QJsonDocument ackDoc;
-        if(m_tcpClient->proxyCall(BdRequestRemoveMcuVersion_E,&body,ackDoc))
+        if(m_tcpClient->proxyCall(BdRequestRemoveMcuVersion_E,&mcuBody,ackDoc))
         {
             CCommon::Instance()->RemoveItem(ui->McuVersionListWidget,index);
             if(ui->McuVersionListWidget->count() == 0)
@@ -734,7 +806,11 @@ void CProductVersionInfo::on_SetGroupFileDefaultBtn_clicked()
         body.groupFileInfos = groups;
         body.groupFileInfos[groupInfo.name] = groupInfo;
         QJsonDocument ackDoc;
-        if(m_tcpClient->proxyCall(BdRequestSaveProductInfo_E,&body,ackDoc))
+
+        BD_REQUEST_GROUP_S groupBody;
+        groupBody.productName = m_producuInfo.productName;
+        groupBody.name = groupInfo.name;
+        if(m_tcpClient->proxyCall(BdRequestSetDefaultGroupFileVersion_E,&groupBody,ackDoc))
         {
             int count = ui->GroupFileListWidget->count();
             while (count--) {
@@ -810,7 +886,6 @@ void CProductVersionInfo::on_DeleteSelectedGroupFileBtn_clicked()
                 m_producuInfo.groupFileDefaultVersion.savePath.clear();
                 m_producuInfo.groupFileDefaultVersion.fileInfos.clear();
                 m_producuInfo.groupFileDefaultVersion.fileInfos.clear();
-                m_tcpClient->proxyCall(BdRequestSaveProductInfo_E,&m_producuInfo,ackDoc);
             }
             CCommon::Instance()->RemoveItem(ui->GroupFileListWidget,index);
             CCommon::Instance()->RemoveAllItems(ui->FileListWidget);
@@ -919,5 +994,69 @@ void CProductVersionInfo::on_GroupFileListWidget_currentRowChanged(int currentRo
             ui->FileListWidget->setItemWidget(item,new CVersionInfo(item,vInfo,this));
         }
         ui->FileListWidget->sortItems();
+    }
+}
+
+void CProductVersionInfo::on_CustomDesignCmBox_currentIndexChanged(int index)
+{
+    if(m_bIsLoading)
+        return;
+    CCommon::Instance()->RemoveAllItems(ui->CrcVersionListWidget);
+    if(index >= 0)
+    {
+        QString custom = ui->CustomDesignCmBox->currentText();
+        foreach (VERSION_INFO_S info, m_producuInfo.crcVersionList) {
+            if(info.custom == custom)
+            {
+                QListWidgetItem *item = new QListWidgetItem(info.name);
+                ui->CrcVersionListWidget->addItem(item);
+                ui->CrcVersionListWidget->setItemWidget(item,new CVersionInfo(item,info,this));
+            }
+        }
+    }
+}
+
+void CProductVersionInfo::on_AddCustomDesignBtn_clicked()
+{
+    GROUP_FILE_INFO_S info;
+    if(CAddGroupFileDlg::addNewGroupFile(info,this))
+    {
+        info.savePath = QString("./version/%1/%2/").arg(m_producuInfo.productName).arg(info.name);
+        if(m_producuInfo.groupFileInfos.contains(info.name))
+        {
+            QMessageBox::information(this,tr("Add Group File"),tr("Adding failed, the group file already exists!"));
+            return;
+        }
+
+        BD_REQUEST_EDIT_GROUP_FILE_S body;
+        body.productName = m_producuInfo.productName;
+        body.groupFileInfo = info;
+        QJsonDocument ackDoc;
+        if(m_tcpClient->proxyCall(BdRequestAddGroupFile_E,&body,ackDoc))
+        {
+            QListWidgetItem *item = new QListWidgetItem(info.name);
+            ui->GroupFileListWidget->insertItem(0,item);
+            ui->GroupFileListWidget->setItemWidget(item,new CGroupFileItem(item,info,this));
+            ui->GroupFileListWidget->setCurrentItem(item);
+            ui->GroupFileListWidget->sortItems();
+            m_producuInfo.groupFileInfos[info.name] = info;
+        }
+        else
+            QMessageBox::information(this,tr("Add Group File"),tr("Adding failed!"));
+    }
+}
+
+void CProductVersionInfo::on_RemoveCustomDesignBtn_clicked()
+{
+
+}
+
+void CProductVersionInfo::on_RefreshBtn_clicked()
+{
+    CHintWidget::Instance()->ShowHint(tr("Loading..."), 3);
+    PRODUCT_INFO_S info;
+    if(CCommon::Instance()->GetProductInfo(m_producuInfo.productName, info))
+    {
+        setProductInfo(info);
     }
 }

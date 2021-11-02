@@ -20,6 +20,7 @@ GROUP_FILE_INFO_S CAddGroupFileDlg::info()
     m_info.name = ui->NameEdit->text();
     m_info.date = QDateTime::currentDateTime().toString("yyyy/MM/dd hh:mm:ss");
     m_info.message = ui->MessageEdit->toPlainText();
+    m_info.isDefault = false;
     return m_info;
 
 }

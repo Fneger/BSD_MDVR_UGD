@@ -19,6 +19,8 @@
 #include "ceventsdlg.h"
 #include <QFileInfo>
 #include <QElapsedTimer>
+#include "cloginfodlg.h"
+#include "CHintWidget.h"
 
 MainWindow *MainWindow::S_pThis = nullptr;
 MainWindow::MainWindow(QWidget *parent)
@@ -58,6 +60,7 @@ MainWindow::MainWindow(QWidget *parent)
     ui->action_ClientTest->setVisible(false);
     ui->action_AddProduct->setVisible(false);
     ui->action_DeleteProduct->setVisible(false);
+    ui->action_SaveProduct->setVisible(false);
     m_nTimer = startTimer(1000);
 }
 
@@ -74,9 +77,40 @@ MainWindow *MainWindow::Instance()
 }
 void MainWindow::refreshProductInfos()
 {
+    m_deviceItemModel->clear();
+    foreach (CProductVersionInfo *pVersionInfo, m_productList) {
+            removeProduct(pVersionInfo->productName());
+        }
     QString title = QString("%1(%2-%3)").arg(qApp->applicationName()).arg(Settings.value("ClientSettings/uuid","U000000000001").toString()).arg(Settings.value("ServerSettings/sUserName","admin").toString());
     this->setWindowTitle(title);
-    on_action_RefreshProductInfo_triggered();
+    showTips(tr("Loading product information......"));
+    m_productsName = CCommon::Instance()->GetProductList();
+
+    foreach (QString name, m_productsName) {
+        PRODUCT_INFO_S info;
+        info.productName = name;
+        CProductVersionInfo *pVersionInfo = addProduct(info.productName);
+        pVersionInfo->setProductInfo(info);
+    }
+    int sel = Settings.value("UiSettings/sSelectProduct",0).toInt();
+    if(sel > m_productsName.size() - 1)
+        sel = 0;
+    if(m_productsName.size() > 0)
+    {
+        QModelIndex index = m_deviceItemModel->index(sel,0);
+        m_itemSelectModel->clearSelection();
+        m_itemSelectModel->setCurrentIndex(index,QItemSelectionModel::Select);
+
+        ui->ProductInfoWidgets->setCurrentIndex(sel);
+
+        CProductVersionInfo *pVersionInfo = qobject_cast<CProductVersionInfo*>(ui->ProductInfoWidgets->currentWidget());
+        PRODUCT_INFO_S info;
+        showTips(tr("Loading product information......"));
+        if(CCommon::Instance()->GetProductInfo(pVersionInfo->productInfo().productName, info))
+        {
+            pVersionInfo->setProductInfo(info);
+        }
+    }
     if(m_tcpClient->authLevel() != BdUserAuthAdmin_E)
     {
         ui->action_Administrator->setVisible(false);
@@ -90,7 +124,7 @@ bool MainWindow::saveProductInfos()
 
 void MainWindow::on_ShowTips(QString tips)
 {
-    m_tipsItem->setText(tips);
+    showTips(tips);
 }
 
 void MainWindow::on_ShowTipsProgressBar(int totalValue,int currValue)
@@ -133,9 +167,6 @@ CProductVersionInfo  *MainWindow::addProduct(const QString productName)
     ui->ProductInfoWidgets->addWidget(pVersionInfo);
     ui->ProductInfoWidgets->setCurrentWidget(pVersionInfo);
     m_deviceItemModel->appendRow(new QStandardItem(productName));
-    QModelIndex index = m_deviceItemModel->index(ui->ProductInfoWidgets->currentIndex(),0);
-    m_itemSelectModel->clearSelection();
-    m_itemSelectModel->setCurrentIndex(index,QItemSelectionModel::Select);
     return pVersionInfo;
 }
 
@@ -168,6 +199,7 @@ void MainWindow::setActionEnable(bool bEnable)
     ui->action_RefreshProductInfo->setEnabled(bEnable);
     ui->action_Events->setEnabled(bEnable);
     ui->action_Administrator->setEnabled(bEnable);
+    ui->action_LogSearch->setEnabled(bEnable);
     ui->ProductList->setEnabled(bEnable);
     if(bEnable)
     {
@@ -394,9 +426,24 @@ bool MainWindow::downloadFile(const QString &localPath,const QString &remoteFull
     return res;
 }
 
+void MainWindow::showTips(const QString &tips)
+{
+    m_tipsItem->setText(tips);
+    if(tips.contains("code:0,"))
+        return;
+    CHintWidget::Instance()->ShowHint(tips,3);
+}
+
 void MainWindow::on_ProductList_clicked(const QModelIndex &index)
 {
     ui->ProductInfoWidgets->setCurrentIndex(index.row());
+    CProductVersionInfo *pInfo = m_productList.at(index.row());
+    PRODUCT_INFO_S info;
+    if(CCommon::Instance()->GetProductInfo(pInfo->productInfo().productName, info))
+    {
+        pInfo->setProductInfo(info);
+    }
+     Settings.setValue("UiSettings/sSelectProduct",index.row());
 }
 
 
@@ -461,16 +508,7 @@ void MainWindow::on_action_DeleteProduct_triggered()
 
 void MainWindow::on_action_RefreshProductInfo_triggered()
 {
-    foreach (CProductVersionInfo *pVersionInfo, m_productList) {
-        removeProduct(pVersionInfo->productName());
-    }
-    m_tipsItem->setText(tr("Loading product information......"));
-    QMap<QString,PRODUCT_INFO_S> products = CCommon::Instance()->LoadProducts();
-
-    foreach (PRODUCT_INFO_S info, products) {
-        CProductVersionInfo *pVersionInfo = addProduct(info.productName);
-        pVersionInfo->setProductInfo(info);
-    }
+   refreshProductInfos();
 }
 
 void MainWindow::on_action_Administrator_triggered()
@@ -483,4 +521,11 @@ void MainWindow::on_action_Events_triggered()
 {
     CEventsDlg eventsDlg(m_tcpClient.data(),this);
     eventsDlg.exec();
+}
+
+void MainWindow::on_action_LogSearch_triggered()
+{
+    CLogInfoDlg logInfoDlg(m_tcpClient.data(),this);
+    logInfoDlg.setProductsName(m_productsName);
+    logInfoDlg.exec();
 }

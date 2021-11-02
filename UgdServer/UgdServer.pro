@@ -12,6 +12,7 @@ RC_ICONS = UgdServer.ico
 # depend on your compiler). Please consult the documentation of the
 # deprecated API in order to know how to port your code away from it.
 DEFINES += QT_DEPRECATED_WARNINGS
+DEFINES += USE_DATABASE
 
 # You can also make your code fail to compile if it uses deprecated APIs.
 # In order to do so, uncomment the following line.
@@ -22,6 +23,7 @@ SOURCES += \
         ZoomPipeline/cluster/zp_clusternode.cpp \
         ZoomPipeline/cluster/zp_clusterterm.cpp \
         ZoomPipeline/database/databaseresource.cpp \
+        ZoomPipeline/database/databasetool.cpp \
         ZoomPipeline/logger/st_logger.cpp \
         ZoomPipeline/network/zp_net_threadpool.cpp \
         ZoomPipeline/network/zp_netlistenthread.cpp \
@@ -37,6 +39,8 @@ SOURCES += \
         ZoomPipeline/smartlink/st_client_table.cpp \
         ZoomPipeline/smartlink/st_clientnode_applayer.cpp \
         ZoomPipeline/smartlink/st_clientnode_basetrans.cpp \
+        ZoomPipeline/smartlink/st_global_def.cpp \
+        ZoomPipeline/smartlink/st_message.cpp \
         ZoomPipeline/smartlink/st_packet_tool.cpp \
         dialogaddressinput.cpp \
         main.cpp \
@@ -52,6 +56,7 @@ HEADERS += \
     ZoomPipeline/cluster/zp_clusternode.h \
     ZoomPipeline/cluster/zp_clusterterm.h \
     ZoomPipeline/database/databaseresource.h \
+    ZoomPipeline/database/databasetool.h \
     ZoomPipeline/logger/st_logger.h \
     ZoomPipeline/network/ssl_config.h \
     ZoomPipeline/network/zp_net_threadpool.h \
@@ -68,10 +73,14 @@ HEADERS += \
     ZoomPipeline/smartlink/st_client_table.h \
     ZoomPipeline/smartlink/st_clientnode_applayer.h \
     ZoomPipeline/smartlink/st_clientnode_basetrans.h \
+    ZoomPipeline/smartlink/st_global_def.h \
     ZoomPipeline/smartlink/st_message.h \
     ZoomPipeline/smartlink/st_packet_tool.h \
     dialogaddressinput.h \
     zpmainframe.h
+
+INCLUDEPATH += E:\boost_1_77_0
+INCLUDEPATH += E:\boost_1_77_0\boost
 
 INCLUDEPATH += \
     ZoomPipeline/cluster \
@@ -80,6 +89,7 @@ INCLUDEPATH += \
     ZoomPipeline/network \
     ZoomPipeline/pipeline \
     ZoomPipeline/smartlink
+
 
 FORMS += \
     dialogaddressinput.ui \
@@ -98,4 +108,5 @@ win32{
 
 INCLUDEPATH += $$PWD/QAsioSocket/include
 DEPENDPATH += $$PWD/QAsioSocket/include
+
 

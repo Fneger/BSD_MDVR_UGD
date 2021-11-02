@@ -28,5 +28,7 @@
         <file>images/reset_event.png</file>
         <file>images/edit_event.png</file>
         <file>images/stop_transmission.png</file>
+        <file>images/log_search.png</file>
+        <file>images/product_refresh.png</file>
     </qresource>
 </RCC>

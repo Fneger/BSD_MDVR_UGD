@@ -12,7 +12,6 @@
 #include <QDateTime>
 
 QSettings Settings("AppSettings",QSettings::IniFormat);
-CCommon *CCommon::S_pThis = nullptr;
 CCommon::CCommon()
 {
 
@@ -21,11 +20,12 @@ CCommon::CCommon()
 CCommon *CCommon::Instance()
 {
     static QMutex s_dataMutex;
+    static CCommon *pInstance = nullptr;
     s_dataMutex.lock();
-    if(S_pThis == nullptr)
-        S_pThis = new CCommon;
+    if(pInstance == nullptr)
+        pInstance = new CCommon;
     s_dataMutex.unlock();
-    return S_pThis;
+    return pInstance;
 }
 
 void CCommon::RemoveItem(QListWidget *listWidget,int row)
@@ -50,6 +50,156 @@ void CCommon::RemoveAllItems(QListWidget *listWidget)
     while (count--) {
         RemoveItem(listWidget,count);
     }
+}
+
+QStringList CCommon::GetProductList()
+{
+    QStringList list;
+    QJsonDocument ackJson;
+    if(m_tcpClient->proxyCall(BdRequestQueryProductList_E,nullptr,ackJson))
+    {
+        QJsonObject ackObj = ackJson.object();
+        if(ackObj.contains("data"))
+        {
+            QJsonArray productList = ackObj["data"].toArray();
+            QString sName;
+            foreach (QJsonValue value, productList) {
+                list << value.toString();
+            }
+        }
+    }
+    return list;
+}
+
+bool CCommon::GetProductInfo(const QString &name, PRODUCT_INFO_S &info)
+{
+    PRODUCT_INFO_S productInfo;
+    QJsonDocument ackJson;
+    if(m_tcpClient->proxyCall(BdRequestQueryProductInfo_E,name.toUtf8().data(),ackJson))
+    {
+        QJsonObject ackObj = ackJson.object();
+        if(!ackObj.contains("data"))
+            return false;
+        if(ackObj["data"].isNull())
+            return false;
+        QJsonObject productObj = ackObj["data"].toObject();
+        if(productObj.contains("ProductName"))
+            productInfo.productName = productObj["ProductName"].toString();
+        if(productObj.contains("ProductTypeId"))
+            productInfo.productTypeId = productObj["ProductTypeId"].toString().toULongLong();
+        if(productObj.contains("Date"))
+            productInfo.date = productObj["Date"].toString();
+        if(productObj.contains("ProductDesp"))
+            productInfo.productDesp = productObj["ProductDesp"].toString();
+        if(productObj.contains("CrcDefaultVersion"))
+        {
+            QJsonObject crcObj = productObj["CrcDefaultVersion"].toObject();
+            GetVersionInfo(productInfo.crcDefaultVersion,crcObj);
+        }
+        if(productObj.contains("SaveFilePath"))
+            productInfo.saveFilePath = productObj["SaveFilePath"].toString();
+
+        if(productObj.contains("CrcVersionList"))
+        {
+            QJsonArray jsonArray = productObj["CrcVersionList"].toArray();
+            foreach(QJsonValue jsonValue,jsonArray){
+                QJsonObject crcObj = jsonValue.toObject();
+                VERSION_INFO_S crcInfo;
+                GetVersionInfo(crcInfo,crcObj);
+                productInfo.crcVersionList[crcInfo.name] = crcInfo;
+            }
+
+        }
+        if(productObj.contains("McuInfos"))
+        {
+            QJsonArray jsonArray = productObj["McuInfos"].toArray();
+
+            foreach(QJsonValue jsonValue,jsonArray){
+                QJsonObject mcuTypeObj = jsonValue.toObject();
+                MCU_INFO_S mcuTypeInfo;
+                if(mcuTypeObj.contains("McuTypeName"))
+                    mcuTypeInfo.mcuTypeName = mcuTypeObj["McuTypeName"].toString();
+                if(mcuTypeObj.contains("McuTypeId"))
+                    mcuTypeInfo.mcuTypeId = mcuTypeObj["McuTypeId"].toString().toULongLong();
+                if(mcuTypeObj.contains("McuDefaultVersion"))
+                {
+                    QJsonObject mcuObj = mcuTypeObj["McuDefaultVersion"].toObject();
+                    GetVersionInfo(mcuTypeInfo.mcuDefaultVersion,mcuObj);
+                }
+                if(mcuTypeObj.contains("McuVersionList"))
+                {
+                    QJsonArray jsonArray = mcuTypeObj["McuVersionList"].toArray();
+                    foreach(QJsonValue jsonValue,jsonArray){
+                        QJsonObject mcuObj = jsonValue.toObject();
+                        VERSION_INFO_S mcuInfo;
+                        GetVersionInfo(mcuInfo,mcuObj);
+                        mcuTypeInfo.mcuVersionList[mcuInfo.name] = mcuInfo;
+                    }
+                }
+                productInfo.mcuInfos[mcuTypeInfo.mcuTypeName] = mcuTypeInfo;
+            }
+        }
+
+        if(productObj.contains("GroupFileDefaultVersion"))
+        {
+            QJsonObject groupFileObj = productObj["GroupFileDefaultVersion"].toObject();
+            if(groupFileObj.contains("Name"))
+                productInfo.groupFileDefaultVersion.name = groupFileObj["Name"].toString();
+            if(groupFileObj.contains("Date"))
+                productInfo.groupFileDefaultVersion.date = groupFileObj["Date"].toString();
+            if(groupFileObj.contains("SavePath"))
+                productInfo.groupFileDefaultVersion.savePath = groupFileObj["SavePath"].toString();
+            if(groupFileObj.contains("Message"))
+                productInfo.groupFileDefaultVersion.name = groupFileObj["Message"].toString();
+            if(groupFileObj.contains("IsDefault"))
+                productInfo.groupFileDefaultVersion.isDefault = groupFileObj["IsDefault"].toBool();
+            productInfo.groupFileDefaultVersion.fileInfos.clear();
+            if(groupFileObj.contains("FileInfos"))
+            {
+                QJsonArray fileArray = groupFileObj["FileInfos"].toArray();
+                foreach (QJsonValue fileValue, fileArray) {
+                    QJsonObject fileObj = fileValue.toObject();
+                    VERSION_INFO_S fileInfo;
+                    GetVersionInfo(fileInfo,fileObj);
+                    productInfo.groupFileDefaultVersion.fileInfos[fileInfo.fileName] = fileInfo;
+                }
+            }
+        }
+
+        if(productObj.contains("GroupFileInfos"))
+        {
+            QJsonArray groupFileArray = productObj["GroupFileInfos"].toArray();
+            foreach(QJsonValue groupFileValue,groupFileArray){
+                QJsonObject groupFileObj = groupFileValue.toObject();
+                GROUP_FILE_INFO_S groupFileInfo;
+                if(groupFileObj.contains("Name"))
+                    groupFileInfo.name = groupFileObj["Name"].toString();
+                if(groupFileObj.contains("Date"))
+                    groupFileInfo.date = groupFileObj["Date"].toString();
+                if(groupFileObj.contains("SavePath"))
+                    groupFileInfo.savePath = groupFileObj["SavePath"].toString();
+                if(groupFileObj.contains("Message"))
+                    groupFileInfo.message = groupFileObj["Message"].toString();
+                if(groupFileObj.contains("IsDefault"))
+                    groupFileInfo.isDefault = groupFileObj["IsDefault"].toBool();
+                groupFileInfo.fileInfos.clear();
+                if(groupFileObj.contains("FileInfos"))
+                {
+                    QJsonArray fileArray = groupFileObj["FileInfos"].toArray();
+                    foreach (QJsonValue fileValue, fileArray) {
+                        QJsonObject fileObj = fileValue.toObject();
+                        VERSION_INFO_S fileInfo;
+                        GetVersionInfo(fileInfo,fileObj);
+                        groupFileInfo.fileInfos[fileInfo.fileName] = fileInfo;
+                    }
+                }
+                productInfo.groupFileInfos[groupFileInfo.name] = groupFileInfo;
+            }
+        }
+    }
+    qDebug() << __FUNCTION__ << productInfo.crcVersionList.keys();
+    info = productInfo;
+    return true;
 }
 
 QMap<QString,PRODUCT_INFO_S> CCommon::LoadProducts()
@@ -300,6 +450,7 @@ void CCommon::PutVersionInfo(const VERSION_INFO_S &info,QJsonObject &infoObj)
     infoObj["Message"] = info.message;
     infoObj["FileName"] = info.fileName;
     infoObj["FileSize"] = QString::number(info.fileSize);
+    infoObj["Custom"] = info.custom;
 }
 
 void CCommon::GetVersionInfo(VERSION_INFO_S &info, const QJsonObject &infoObj)
@@ -316,6 +467,8 @@ void CCommon::GetVersionInfo(VERSION_INFO_S &info, const QJsonObject &infoObj)
         info.fileName = infoObj["FileName"].toString();
     if(infoObj.contains("FileSize"))
         info.fileSize = infoObj["FileSize"].toString().toULong();
+    if(infoObj.contains("Custom"))
+        info.custom = infoObj["Custom"].toString();
 }
 
 QString CCommon::GetEventName(int type)
@@ -410,5 +563,31 @@ QMap<quint64,EVENT_INFO_S> CCommon::QueryEvents()
         }
     }
     return events;
+}
+
+bool CCommon::AddLog2Db(CTcpClient *pClient,
+                        const QString &productName,
+                        const QString &devNum,
+                        const QString &imeiNumber,
+                        const QString &fwVer,
+                        int type,
+                        int subtype,
+                        int result,
+                        const QString &msg)
+{
+    if(pClient == nullptr)
+        return false;
+    BD_REQUEST_LOG_S info;
+    info.productName = productName;
+    info.devNumber = devNum;
+    info.imeiNumber = imeiNumber;
+    info.fwVersion = fwVer;
+    info.type = type;
+    info.subtype = subtype;
+    info.result = result;
+    info.dateTime = QDateTime::currentDateTime();
+    info.message = msg;
+    QJsonDocument ackDoc;
+    return pClient->proxyCall(BdRequestAddLog_E,&info,ackDoc);
 }
 

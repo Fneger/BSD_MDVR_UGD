@@ -32,6 +32,7 @@ public:
     CTcpClient *tcpClient() { return m_tcpClient.data(); }
     bool uploadFile(const QString &localFullPath, const QString &remotePath, const QString &remoteFileName);
     bool downloadFile(const QString &localPath,const QString &remoteFullPath);
+    void showTips(const QString &tips);
 
 private slots:
     void on_ShowTips(QString tips);
@@ -53,6 +54,8 @@ private slots:
     void on_action_Administrator_triggered();
 
     void on_action_Events_triggered();
+
+    void on_action_LogSearch_triggered();
 
 private:
     bool saveProductInfos();
@@ -77,5 +80,6 @@ private:
     bool m_bCancelUpload;
     bool m_bCancelDownload;
     int m_nTimer;
+    QStringList m_productsName;
 };
 #endif // MAINWINDOW_H
