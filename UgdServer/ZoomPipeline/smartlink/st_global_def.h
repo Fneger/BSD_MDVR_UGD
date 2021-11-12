@@ -120,6 +120,7 @@ typedef struct {
     int subtype;   //日志子类型
     GS_LOG_RESULT result; //执行结果
     QDateTime dateTime;   //日志产生时间
+    QDateTime serverDateTime;   //服务器本地时间
     QString message;    //日志内容
 } BODY_LOG_INFO_S;
 

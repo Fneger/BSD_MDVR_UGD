@@ -29,28 +29,25 @@ DatabaseTool *DatabaseTool::Instance()
     return pInstance;
 }
 
-bool DatabaseTool::initLogTableManager(QSqlDatabase db)
+bool DatabaseTool::initLogTableManager(QSqlDatabase db, int devNum)
 {
-    m_logManMutex.lock();
-    m_logTableManager.clear();
-    for(int i = 0; i < S_LOG_TABLE_DEV_ID_MAX; i += S_LOG_TABLE_DEV_MAX)
+    int tableNum = devNum / S_LOG_TABLE_DEV_MAX;
+    if(m_logTableManager.contains(tableNum))
+        return true;
+    LOG_TABLE_MAN_S man;
+    man.tableName = getLogTableName(devNum);
+    man.isCreated = tableExists(db, man.tableName + "_" + S_LOG_INFO_TABLE_NAME);
+    if(man.isCreated)
     {
-        LOG_TABLE_MAN_S man;
-        man.tableName = getLogTableName(i);
-        man.isCreated = tableExists(db, man.tableName + "_" + S_LOG_INFO_TABLE_NAME);
-        if(man.isCreated)
-        {
-            m_extTableName = man.tableName;
-            man.savedItemNum = queryItemsCount(db, TB_LOG_INFO_E);
-        }
-        else
-            man.savedItemNum = 0;
-        man.startDevNumber = i;
-        man.endDevNumber = i + S_LOG_TABLE_DEV_MAX;
-        man.isFull = false;
-        m_logTableManager << man;
+        m_extTableName = man.tableName;
+        man.savedItemNum = queryItemsCount(db, TB_LOG_INFO_E);
     }
-    m_logManMutex.unlock();
+    else
+        man.savedItemNum = 0;
+    man.startDevNumber = devNum;
+    man.endDevNumber = devNum + S_LOG_TABLE_DEV_MAX;
+    man.isFull = false;
+    m_logTableManager[tableNum] = man;
     return true;
 }
 
@@ -66,34 +63,39 @@ QString DatabaseTool::getLogTableName(int devNumber)
     return QString("%1").arg(startNum, 8, 10, QChar('0'));
 }
 
-bool DatabaseTool::logTableExists(const QString &devNumber)
+bool DatabaseTool::logTableExists(QSqlDatabase db, const QString &devNumber)
 {
     bool res = false;
     m_logManMutex.lock();
     int devNum = devNumber.toInt();
-    if(devNum >= m_logTableManager.size())
+    initLogTableManager(db, devNum);
+    int tableNum = devNum / S_LOG_TABLE_DEV_MAX;
+    if(!m_logTableManager.contains(tableNum))
     {
         m_logManMutex.unlock();
         return res;
     }
-    res = m_logTableManager.at(devNum).isCreated;
+
+    res = m_logTableManager[tableNum].isCreated;
     m_logManMutex.unlock();
     return res;
 }
 
-void DatabaseTool::setLogTableExists(const QString &devNumber, bool bExists)
+void DatabaseTool::setLogTableExists(QSqlDatabase db, const QString &devNumber, bool bExists)
 {
     m_logManMutex.lock();
     int devNum = devNumber.toInt();
-    if(devNum >= m_logTableManager.size())
+    initLogTableManager(db, devNum);
+    int tableNum = devNumber.toInt() / S_LOG_TABLE_DEV_MAX;
+    if(!m_logTableManager.contains(tableNum))
     {
         m_logManMutex.unlock();
         return;
     }
 
-    LOG_TABLE_MAN_S man = m_logTableManager.at(devNum);
+    LOG_TABLE_MAN_S man = m_logTableManager[tableNum];
     man.isCreated = bExists;
-    m_logTableManager.replace(devNum, man);
+    m_logTableManager[tableNum]  = man;
     m_logManMutex.unlock();
 }
 
@@ -207,7 +209,8 @@ void DatabaseTool::putDb2Struct(GS_BODY_TYPE nType, GS_DB_BODY_C &body, const QS
         info.subtype = query.value(6).toInt();
         info.result = (GS_LOG_RESULT)query.value(7).toInt();
         info.dateTime = query.value(8).toDateTime();
-        info.message = query.value(9).toString();
+        info.serverDateTime = query.value(9).toDateTime();
+        info.message = query.value(10).toString();
         body = info;
     }
         break;
@@ -337,7 +340,8 @@ bool DatabaseTool::createTable(QSqlDatabase db, GS_BODY_TYPE nType)
                           "`file_name` VARCHAR(128),"
                           "`file_size` INT UNSIGNED NOT NULL,"
                           "`custom` VARCHAR(16),"
-                          "PRIMARY KEY ( `id` )"
+                          "PRIMARY KEY ( `id` ),"
+                          "INDEX `product_name` (`product_name`)"
                           ")ENGINE=InnoDB DEFAULT CHARSET=utf8;").arg(tableName);
             break;
         case TB_MCU_VERSION_INFO_E:
@@ -352,7 +356,9 @@ bool DatabaseTool::createTable(QSqlDatabase db, GS_BODY_TYPE nType)
                           "`message` VARCHAR(4096),"
                           "`file_name` VARCHAR(128),"
                           "`file_size` INT UNSIGNED NOT NULL,"
-                          "PRIMARY KEY ( `id` )"
+                          "PRIMARY KEY ( `id` ),"
+                          "INDEX `product_name` (`product_name`),"
+                          "INDEX `mcu_type_name` (`mcu_type_name`)"
                           ")ENGINE=InnoDB DEFAULT CHARSET=utf8;").arg(tableName);
             break;
         case TB_GROUP_VERSION_INFO_E:
@@ -370,13 +376,14 @@ bool DatabaseTool::createTable(QSqlDatabase db, GS_BODY_TYPE nType)
                           "`sub_file_path` VARCHAR(128),"
                           "`sub_file_size` INT UNSIGNED,"
                           "`sub_file_message` VARCHAR(4096),"
-                          "PRIMARY KEY ( `id` )"
+                          "PRIMARY KEY ( `id` ),"
+                          "INDEX `product_name` (`product_name`)"
                           ")ENGINE=InnoDB DEFAULT CHARSET=utf8;").arg(tableName);
             break;
         case TB_LOG_INFO_E:
             tableName = QString("%1_%2").arg(m_extTableName).arg(S_LOG_INFO_TABLE_NAME);
             sql = QString("CREATE TABLE IF NOT EXISTS `%1` ("
-                          "`id` INT UNSIGNED AUTO_INCREMENT,"
+                          "`id` BIGINT(20) AUTO_INCREMENT,"
                           "`product_name` VARCHAR(64) NOT NULL,"
                           "`dev_number` VARCHAR(64) NOT NULL,"
                           "`imei_number` VARCHAR(64),"
@@ -385,8 +392,14 @@ bool DatabaseTool::createTable(QSqlDatabase db, GS_BODY_TYPE nType)
                           "`subtype` INT UNSIGNED NOT NULL,"
                           "`result` INT UNSIGNED NOT NULL,"
                           "`date_time` DATETIME NOT NULL,"
+                          "`server_date_time` DATETIME NOT NULL,"
                           "`message` VARCHAR(4096) NOT NULL,"
-                          "PRIMARY KEY ( `id` )"
+                          "PRIMARY KEY ( `id` ),"
+                          "INDEX `product_name` (`product_name`),"
+                          "INDEX `dev_number` (`dev_number`),"
+                          "INDEX `type` (`type`),"
+                          "INDEX `subtype` (`subtype`),"
+                          "INDEX `result` (`result`)"
                           ")ENGINE=InnoDB DEFAULT CHARSET=utf8;").arg(tableName);
             break;
         }
@@ -582,9 +595,9 @@ bool DatabaseTool::insertItem(QSqlDatabase db, GS_BODY_TYPE nType, const GS_DB_B
         {
             BODY_LOG_INFO_S body =  boost::any_cast<BODY_LOG_INFO_S>(dbBody);
             sql = QString("INSERT INTO %1_%2"
-                          "(product_name, dev_number, imei_number, fw_version, type, subtype, result, date_time, message)"
+                          "(product_name, dev_number, imei_number, fw_version, type, subtype, result, date_time, server_date_time, message)"
                           "VALUES"
-                          "(:product_name, :dev_number, :imei_number, :fw_version, :type, :subtype, :result, :date_time, :message);")
+                          "(:product_name, :dev_number, :imei_number, :fw_version, :type, :subtype, :result, :date_time, :server_date_time, :message);")
                     .arg(m_extTableName).arg(S_LOG_INFO_TABLE_NAME);
             query.prepare(sql);
             query.bindValue(":product_name", body.productName);
@@ -595,6 +608,7 @@ bool DatabaseTool::insertItem(QSqlDatabase db, GS_BODY_TYPE nType, const GS_DB_B
             query.bindValue(":subtype", body.subtype);
             query.bindValue(":result", body.result);
             query.bindValue(":date_time", body.dateTime);
+            query.bindValue(":server_date_time", body.serverDateTime);
             query.bindValue(":message", body.message);
         }
             break;

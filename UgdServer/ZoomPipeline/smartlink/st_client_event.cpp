@@ -82,19 +82,19 @@ QMap<quint64,EVENT_INFO_S> st_client_event::GetTerminalEvents(const TERMINAL_INF
             id = tmnInfo.deviceNum;
             break;
         case EventRevVideoId_E:
-            id = tmnInfo.phoneNumber;
+            id = tmnInfo.videoId;
             break;
         case EventRevPhoneNum_E:
-            id = tmnInfo.licenseNum;
+            id = tmnInfo.phoneNumber;
             break;
         case EventRevLicenseNum_E:
-            id = tmnInfo.videoId;
+            id = tmnInfo.licenseNum;
             break;
         default:
 
             break;
         }
-        if(event.second.id == id && event.second.status == EventStatusWaitting_E)
+        if(event.second.id == id && (event.second.status == EventStatusWaitting_E || event.second.status == EventStatusExecuting_E))
         {
             events[event.second.eventSn] = event.second;
         }

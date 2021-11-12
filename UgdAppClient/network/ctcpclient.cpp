@@ -1077,6 +1077,7 @@ void CTcpClient::updateCcp()
 
         if(m_ccp.curr_rtt_ms > rtt_thresh_ms)
             delayMs(rtt_thresh_ms);
+
         if(MSS == 512)
         {
             if(m_ccp.curr_rtt_ms > rtt_thresh_ms*2)

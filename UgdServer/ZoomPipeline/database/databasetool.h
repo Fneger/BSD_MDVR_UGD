@@ -18,12 +18,10 @@ class DatabaseTool : public QObject
 public:
     explicit DatabaseTool(QObject *parent = nullptr);
     static DatabaseTool *Instance();
-    //初始化日志表管理
-    bool initLogTableManager(QSqlDatabase db);
     QString getLogTableName(const QString &devNumber);
     QString getLogTableName(int devNumber);
-    bool logTableExists(const QString &devNumber);
-    void setLogTableExists(const QString &devNumber, bool bExists);
+    bool logTableExists(QSqlDatabase db, const QString &devNumber);
+    void setLogTableExists(QSqlDatabase db, const QString &devNumber, bool bExists);
     //判断数据库是否存在
     bool schemataExists(QSqlDatabase db, const QString &dbName);
     //判断数据包表是否存在
@@ -53,6 +51,8 @@ public:
     void setExtTableName(const QString &name) { m_extTableName = name; }
 
 private:
+    //初始化日志表管理
+    bool initLogTableManager(QSqlDatabase db, int devNum);
     QString strListToStrs(const QStringList &list);
     void putDb2Struct(GS_BODY_TYPE nType, GS_DB_BODY_C &body, const QSqlQuery &query);
 
@@ -64,7 +64,7 @@ public slots:
 private:
     QString m_errInfo;
     QString m_extTableName; //数据表扩展名称
-    QList<LOG_TABLE_MAN_S> m_logTableManager;
+    QMap<int, LOG_TABLE_MAN_S> m_logTableManager;
     QMutex m_logManMutex;
 };
 }

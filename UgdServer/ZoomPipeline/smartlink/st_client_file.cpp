@@ -423,7 +423,7 @@ bool st_client_file::addLogDb(const BODY_LOG_INFO_S &log)
     QSqlDatabase db = m_pClientTable->dbRes()->databse(m_pClientTable->Database_UserAcct());
     QString tblName = dbTool->getLogTableName(log.devNumber);
     dbTool->setExtTableName(tblName);
-    if(!dbTool->logTableExists(log.devNumber)) //数据表为创建，创建后再添加数据
+    if(!dbTool->logTableExists(db, log.devNumber)) //数据表为创建，创建后再添加数据
     {
         res = dbTool->createTable(db, TB_LOG_INFO_E);
         if(!res)
@@ -431,7 +431,7 @@ bool st_client_file::addLogDb(const BODY_LOG_INFO_S &log)
             qWarning() << "Failed to create log table!" << tblName;
             return res;
         }
-        dbTool->setLogTableExists(log.devNumber, true);
+        dbTool->setLogTableExists(db, log.devNumber, true);
         qDebug() << "Created log table ok" << tblName;
     }
     GS_DB_BODY_C body = log;

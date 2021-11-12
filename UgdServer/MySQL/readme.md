@@ -39,3 +39,7 @@ Host “ip adderss” is not allowed to connect to this mysql server
 4.group版本信息
 ```
 
+```
+{"Name":"ZH520","DevNumber":"000000","ImeiNumber":"863921034310469","FwVersion":"DVR-T21102991-ZH520.BD_G.6592-ENG.crc","Type":0,"Subtype":0,"Result":1,"DateTime":"2021-10-29 11:18:43","Message":"Start downloading files, ServerPath:./version/ZH520/, FileName:DVR-T21102992-ZH520.6592-ENG-BD_G.crc"}}
+```
+

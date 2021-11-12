@@ -100,7 +100,7 @@ protected:
         hostConnected();
     }
     virtual void haveErro() {
-        emit erroString(erro_string);
+        emit erroString(QString("code:%1,%2").arg(erro_code).arg(erro_string));
         emit stateChange(state_);
         emit disConnected();
     }

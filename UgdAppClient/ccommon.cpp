@@ -478,8 +478,14 @@ QString CCommon::GetEventName(int type)
     case EventGetDeviceFiles_E:
         name = QObject::tr("Get Device File");
         break;
-    case EventUpgradeDevice_E:
-        name  = QObject::tr("Upgrade Device");
+    case EventUpgradeDeviceCrc_E:
+        name  = QObject::tr("Upgrade Device CRC");
+        break;
+    case EventUpgradeDeviceMcu_E:
+        name  = QObject::tr("Upgrade Device MCU");
+        break;
+    case EventUpgradeDevicePara_E:
+        name  = QObject::tr("Upgrade Device Group File");
         break;
     default:
         break;

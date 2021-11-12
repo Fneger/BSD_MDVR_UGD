@@ -8,6 +8,7 @@
 #include <QStringList>
 #include <QTcpSocket>
 #include "st_client_event.h"
+#include <QTimer>
 
 namespace ExampleServer{
 	using namespace std::placeholders;
@@ -41,6 +42,12 @@ namespace ExampleServer{
 							  this,
 							  _1,_2,_3)
 					);
+
+
+        m_delNoActiveNodeTimer = new QTimer(this);
+        connect(m_delNoActiveNodeTimer, &QTimer::timeout, this, &st_client_table::on_evt_DelNoActiveNodeTimeout);
+        m_delNoActiveNodeTimer->setInterval(1000);
+        m_delNoActiveNodeTimer->start();
 	}
 	void st_client_table::setBalanceMax(int nmax)
 	{
@@ -95,6 +102,8 @@ namespace ExampleServer{
 
 	st_client_table::~st_client_table()
 	{
+        m_delNoActiveNodeTimer->stop();
+        m_delNoActiveNodeTimer->deleteLater();
 	}
 	void  st_client_table::KickDeadClients()
 	{
@@ -175,7 +184,8 @@ namespace ExampleServer{
     }
 	//this event indicates new client encrypted.
 	void st_client_table::on_evt_ClientEncrypted(QObject * clientHandle)
-	{
+    {//不在此处创建任务节点，接收到数据后再创建
+        return;
 		bool nHashContains = false;
 		st_clientNode_baseTrans * pClientNode = 0;
 		m_hash_mutex.lock();
@@ -201,7 +211,8 @@ namespace ExampleServer{
 
 	//this event indicates new client connected.
 	void  st_client_table::on_evt_NewClientConnected(QObject * clientHandle)
-	{
+    {//不在此处创建任务节点，接收到数据后再创建
+        return;
 		bool nHashContains = false;
 		st_clientNode_baseTrans * pClientNode = 0;
 		m_hash_mutex.lock();
@@ -252,17 +263,20 @@ namespace ExampleServer{
             disconnect (pClientNode,&st_clientNode_baseTrans::evt_SendDataToClient,m_pThreadEngine,&ZPNetwork::zp_net_Engine::evt_SendDataToClient);
 			disconnect (pClientNode,&st_clientNode_baseTrans::evt_close_client,m_pThreadEngine,&ZPNetwork::zp_net_Engine::KickClients);
 			disconnect (pClientNode,&st_clientNode_baseTrans::evt_Message,this,&st_client_table::evt_Message);
-
+            m_mutex_nodeToBeDel.lock();
 			m_nodeToBeDel.push_back(pClientNode);
+            m_mutex_nodeToBeDel.unlock();
 			//qDebug()<<QString("%1(ref %2) Node Push in queue.\n").arg((unsigned int)pClientNode).arg(pClientNode->ref());
 		}
 		m_hash_mutex.unlock();
 
 		//Try to delete objects
+        qint64 currSec = QDateTime::currentSecsSinceEpoch();
 		QList <st_clientNode_baseTrans *> toBedel;
+        m_mutex_nodeToBeDel.lock();
 		foreach(st_clientNode_baseTrans * pdelobj,m_nodeToBeDel)
 		{
-			if (pdelobj->ref() ==0)
+            if (pdelobj->ref() ==0 && currSec - pdelobj->activeTime() > S_ACTIVE_TIMEOUT)
 				toBedel.push_back(pdelobj);
 			else
 			{
@@ -277,6 +291,7 @@ namespace ExampleServer{
 			pdelobj->deleteLater();
 
 		}
+        m_mutex_nodeToBeDel.unlock();
 
 	}
 
@@ -290,7 +305,34 @@ namespace ExampleServer{
 		nHashContains = (m_hash_sock2node.find(clientHandle)!=m_hash_sock2node.end())?true:false;
 		if (false==nHashContains)
 		{
-			st_clientNode_baseTrans * pnode = new st_clientNodeAppLayer(this,clientHandle,0);
+            if(datablock.length() < 16) //数据包太短，格式不正确
+            {
+                qWarning() << __FUNCTION__ << "packet format error" << datablock.length();
+                return;
+            }
+            uint8_t dev_id[8];
+            uint8_t *ptr = (uint8_t*)datablock.data();
+            memcpy(dev_id,&ptr[5],7);
+            st_packet_tool tool;
+            quint16 pos = 0;
+            quint64 source_id = tool.get8bytes(dev_id,&pos) >> 8;
+            qDebug() << __FUNCTION__ << __LINE__ << source_id;
+            st_clientNode_baseTrans * pnode = nullptr;
+            m_mutex_nodeToBeDel.lock();
+            foreach (st_clientNode_baseTrans *pDelNode, m_nodeToBeDel) {
+                if(pDelNode->uuid() == source_id)
+                {
+                    pnode = pDelNode;
+                    qDebug() << "Finded node" << pDelNode->uuid();
+                    m_nodeToBeDel.removeAll(pDelNode);
+                    break;
+                }
+            }
+            m_mutex_nodeToBeDel.unlock();
+            if(pnode != nullptr)
+                pnode->setClientSock(clientHandle);
+            else
+                pnode = new st_clientNodeAppLayer(this,clientHandle,0);
 			//using queued connection of send and revieve;
             connect (pnode,&st_clientNode_baseTrans::evt_SendDataToClient,m_pThreadEngine,&ZPNetwork::zp_net_Engine::evt_SendDataToClient,Qt::QueuedConnection);
 			connect (pnode,&st_clientNode_baseTrans::evt_close_client,m_pThreadEngine,&ZPNetwork::zp_net_Engine::KickClients,Qt::QueuedConnection);
@@ -489,6 +531,33 @@ namespace ExampleServer{
 			return false;
 		return true;
 	}
+
+    void st_client_table::on_evt_DelNoActiveNodeTimeout()
+    {
+        //Try to delete objects
+        qint64 currSec = QDateTime::currentSecsSinceEpoch();
+        QList <st_clientNode_baseTrans *> toBedel;
+        m_mutex_nodeToBeDel.lock();
+        foreach(st_clientNode_baseTrans * pdelobj,m_nodeToBeDel)
+        {
+            if (pdelobj->ref() ==0 && currSec - pdelobj->activeTime() > S_ACTIVE_TIMEOUT)
+                toBedel.push_back(pdelobj);
+            else
+            {
+                //qDebug()<<QString("%1(ref %2) Waiting in del queue.\n").arg((unsigned int)pdelobj).arg(pdelobj->ref());
+            }
+        }
+        foreach(st_clientNode_baseTrans * pdelobj,toBedel)
+        {
+            qDebug() << __FUNCTION__ << __LINE__ << "Del Node" << pdelobj->uuid();
+            m_nodeToBeDel.removeAll(pdelobj);
+
+            //qDebug()<<QString("%1(ref %2) deleting.\n").arg((unsigned int)pdelobj).arg(pdelobj->ref());
+            pdelobj->deleteLater();
+
+        }
+        m_mutex_nodeToBeDel.unlock();
+    }
 
 }
 

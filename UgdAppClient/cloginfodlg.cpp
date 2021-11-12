@@ -6,6 +6,7 @@
 #include "ccalendardlg.h"
 #include "st_global_def.h"
 #include <QMessageBox>
+#include <QListView>
 
 using namespace GsGlobalDef;
 CLogInfoDlg::CLogInfoDlg(CTcpClient *pTcpClient, QWidget *parent) :
@@ -16,6 +17,8 @@ CLogInfoDlg::CLogInfoDlg(CTcpClient *pTcpClient, QWidget *parent) :
 {
     ui->setupUi(this);
     this->setWindowTitle(tr("Log Search"));
+    ui->ContentIndexCbx->setView(new QListView(this));
+
     ui->LogView->setShowGrid(false);//关闭网格
     ui->LogView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);//关闭滚动条
     ui->LogView->verticalHeader()->setVisible(false);//隐藏纵向表头
@@ -47,8 +50,8 @@ CLogInfoDlg::CLogInfoDlg(CTcpClient *pTcpClient, QWidget *parent) :
     ui->TestGroupBox->hide();
 
     m_dateTimeFormat = "yyyy/MM/dd hh:mm:ss";
-    ui->StartDateTimeBtn->setText(Settings.value("UiSettings/sLogSearchStartDateTime", QDateTime::currentDateTime()).toDateTime().toString(m_dateTimeFormat));
-    ui->EndDateTimeBtn->setText(Settings.value("UiSettings/sLogSearchEndDateTime", QDateTime::currentDateTime()).toDateTime().toString(m_dateTimeFormat));
+    ui->StartDateTimeBtn->setText(Settings.value("UiSettings/sLogSearchStartDateTime", QDateTime::currentDateTime()).toDateTime().toString("yyyy/MM/dd") + " 00:00:00");
+    ui->EndDateTimeBtn->setText(Settings.value("UiSettings/sLogSearchEndDateTime", QDateTime::currentDateTime()).toDateTime().toString("yyyy/MM/dd") + " 23:59:59");
     ui->DevNumberEdit->setText(Settings.value("UiSettings/sLogSearchDevNumber", "0001").toString());
     ui->ImeiNumberEdit->setText(Settings.value("UiSettings/sLogSearchImeiNumber", "").toString());
     ui->FwVersionEdit->setText(Settings.value("UiSettings/sLogSearchFwVersion", "").toString());
@@ -138,7 +141,7 @@ void CLogInfoDlg::queryLogs()
                 ui->ContentIndexCbx->clear();
                 for(int i = 0; i < m_pageInfo.pages; i++)
                 {
-                    QString pageIndexStr = QString::number(i+1) + tr(" Page ") + "/" + tr(" Total ") + QString::number(m_pageInfo.pages) + tr(" Pages ");
+                    QString pageIndexStr = tr("NS") + QString::number(i+1) + tr(" Page ") + "/" + tr(" Total ") + QString::number(m_pageInfo.pages) + tr(" Pages ");
                     m_isLoading = true;
                     ui->ContentIndexCbx->addItem(pageIndexStr);
                     m_isLoading = false;
@@ -158,6 +161,7 @@ void CLogInfoDlg::queryLogs()
                 info.subtype = infoObj["Subtype"].toInt();
                 info.result = infoObj["Result"].toInt();
                 info.dateTime = QDateTime::fromString(infoObj["DateTime"].toString(), "yyyy-MM-dd hh:mm:ss");
+                info.serverDateTime = QDateTime::fromString(infoObj["ServerDateTime"].toString(), "yyyy-MM-dd hh:mm:ss");
                 info.message = infoObj["Message"].toString();
                 infos << info;
             }
@@ -240,6 +244,12 @@ void CLogInfoDlg::updateData(const QList<BD_REQUEST_LOG_S> &infos)
             view->setItem(row,column++,item);
         }
         {
+            QTableWidgetItem *item = new QTableWidgetItem(info.serverDateTime.toString("yyyy-MM-dd hh:mm:ss"));
+            item->setTextAlignment(Qt::AlignCenter);
+            item->setTextColor(itemsColor);
+            view->setItem(row,column++,item);
+        }
+        {
             QTableWidgetItem *item = new QTableWidgetItem(info.message);
             item->setTextAlignment(Qt::AlignCenter);
             item->setTextColor(itemsColor);
@@ -260,7 +270,7 @@ void CLogInfoDlg::on_QueryLogBtn_clicked()
     }
     m_pageInfo.page_no = 1;
     m_pageInfo.first_page = 1;
-    m_pageInfo.page_size = 23;
+    m_pageInfo.page_size = 20;
     ui->ContentIndexCbx->clear();
 
     QStringList list;
@@ -272,6 +282,7 @@ void CLogInfoDlg::on_QueryLogBtn_clicked()
             tr("Log Subtype") <<
             tr("Status") <<
             tr("Date Time") <<
+            tr("Server DT") <<
             tr("Message");
     list.clear();
     int rows = 0;
@@ -315,6 +326,10 @@ void CLogInfoDlg::on_QueryLogBtn_clicked()
     }
     {
         list << tr("Date Time");
+        rows++;
+    }
+    {
+        list << tr("Server DT");
         rows++;
     }
     {
@@ -407,7 +422,7 @@ void CLogInfoDlg::on_StartDateTimeBtn_clicked()
 
 void CLogInfoDlg::on_EndDateTimeBtn_clicked()
 {
-    QDateTime dt = QDateTime::fromString(ui->StartDateTimeBtn->text(), m_dateTimeFormat);
+    QDateTime dt = QDateTime::fromString(ui->EndDateTimeBtn->text(), m_dateTimeFormat);
     if(CCalendarDlg::getSelectDateTime(dt, this))
     {
         Settings.setValue("UiSettings/sLogSearchEndDateTime", dt);

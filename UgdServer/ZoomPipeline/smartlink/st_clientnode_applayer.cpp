@@ -46,6 +46,7 @@ namespace ExampleServer{
     {
         if(st_clientNode_baseTrans::deal_current_message_block() < 0)
             return -1;
+        updateActiveTime();
         uint8_t *msgdata = (uint8_t*)&m_currentBlock.data()[14];
         uint16_t msgpos = 0;
         QStringList msg;
@@ -165,7 +166,7 @@ namespace ExampleServer{
             msg << "BdUgdServer Other Function ID\n";
             break;
         }
-        qDebug() << msg;
+        //qDebug() << msg;
         return  0;
     }
 
@@ -709,7 +710,6 @@ namespace ExampleServer{
                     }
                     if(res)
                     {
-                        st_client_file::Instance()->createLogTableDb(productName);
                         BODY_PRODUCT_INFO_S info;
                         info.name = productName;
                         info.desp = dataObj["ProductDesp"].toString();
@@ -1561,6 +1561,7 @@ namespace ExampleServer{
                         info.subtype = 0;
                     info.result = (GS_LOG_RESULT)dataObj["Result"].toInt();
                     info.dateTime = QDateTime::fromString(dataObj["DateTime"].toString(), "yyyy-MM-dd hh:mm:ss");
+                    info.serverDateTime = QDateTime::currentDateTime();
                     info.message = dataObj["Message"].toString();
                     if(st_client_file::Instance()->addLogDb(info))
                     {
@@ -1606,6 +1607,7 @@ namespace ExampleServer{
                     info.pageSize = dataObj["PageSize"].toInt();
 
                     QString queryStr;
+                    QString matchCondition1;
                     QString specifyType;
                     QString specifySubType;
                     QString specifyResult;
@@ -1613,6 +1615,7 @@ namespace ExampleServer{
                     QString specifyImeiNumber;
                     QString specifyCurrentVersion;
                     QString specifyDateTime;
+                    QString specifyServerDateTime;
                     int subtypeMax;
                     int resultMax;
                     if(info.type == LOG_UPGRADE_E)
@@ -1656,55 +1659,63 @@ namespace ExampleServer{
                             specifyCurrentVersion = QString(" fw_version = \"%1\" ").arg(info.fwVersion);
                     }
                     if(info.productName == "ALL")
+                    {
                         specifyDateTime = QString(" date_time >= '%1' AND date_time <= '%2' ")
                                 .arg(dataObj["StartDateTime"].toString()).arg(dataObj["EndDateTime"].toString());
+                        specifyServerDateTime = QString(" server_date_time >= '%1' AND server_date_time <= '%2' ")
+                                .arg(dataObj["StartDateTime"].toString()).arg(dataObj["EndDateTime"].toString());
+                    }
                     else
+                    {
                         specifyDateTime = QString(" product_name = \"%1\" AND date_time >= '%2' AND date_time <= '%3' ")
                                 .arg(info.productName).arg(dataObj["StartDateTime"].toString()).arg(dataObj["EndDateTime"].toString());
+                        specifyServerDateTime = QString(" product_name = \"%1\" AND server_date_time >= '%2' AND server_date_time <= '%3' ")
+                                .arg(info.productName).arg(dataObj["StartDateTime"].toString()).arg(dataObj["EndDateTime"].toString());
+                    }
 
                     if(specifyType.size() > 0)
-                        queryStr += specifyType;
+                        matchCondition1 += specifyType;
                     if(specifyImeiNumber.size() > 0)
                     {
-                        if(queryStr.size() > 0)
-                            queryStr += "AND" + specifyImeiNumber;
+                        if(matchCondition1.size() > 0)
+                            matchCondition1 += "AND" + specifyImeiNumber;
                         else
-                            queryStr += specifyImeiNumber;
+                            matchCondition1 += specifyImeiNumber;
                     }
                     if(specifyCurrentVersion.size() > 0)
                     {
-                        if(queryStr.size() > 0)
-                            queryStr += "AND" + specifyCurrentVersion;
+                        if(matchCondition1.size() > 0)
+                            matchCondition1 += "AND" + specifyCurrentVersion;
                         else
-                            queryStr += specifyCurrentVersion;
+                            matchCondition1 += specifyCurrentVersion;
                     }
                     if(specifySubType.size() > 0)
                     {
-                        if(queryStr.size() > 0)
-                            queryStr += "AND" + specifySubType;
+                        if(matchCondition1.size() > 0)
+                            matchCondition1 += "AND" + specifySubType;
                         else
-                            queryStr += specifySubType;
+                            matchCondition1 += specifySubType;
                     }
                     if(specifyResult.size() > 0)
                     {
-                        if(queryStr.size() > 0)
-                            queryStr += "AND" + specifyResult;
+                        if(matchCondition1.size() > 0)
+                            matchCondition1 += "AND" + specifyResult;
                         else
-                            queryStr += specifyResult;
+                            matchCondition1 += specifyResult;
                     }
 
                     if(specifyDevNumber.size() > 0)
                     {
-                        if(queryStr.size() > 0)
-                            queryStr += "AND" + specifyDevNumber;
+                        if(matchCondition1.size() > 0)
+                            matchCondition1 += "AND" + specifyDevNumber;
                         else
-                            queryStr += specifyDevNumber;
+                            matchCondition1 += specifyDevNumber;
                     }
 
-                    if(queryStr.size() > 0)
-                        queryStr += "AND" + specifyDateTime;
+                    if(matchCondition1.size() > 0)
+                        queryStr = matchCondition1 + "AND" + specifyDateTime;
                     else
-                        queryStr += specifyDateTime;
+                        queryStr = specifyDateTime;
                     qDebug() << __FUNCTION__ <<queryStr;
                     QJsonObject ackObj;
                     if(info.pageNo == 1)
@@ -1714,7 +1725,21 @@ namespace ExampleServer{
                         {
                             ackObj["TotalCount"] = count;
                         }
-                        else
+                        if(count <= 0)
+                        {
+                            qWarning() << "If the time of the matching device is not queried, change the server time to match!";
+                            if(matchCondition1.size() > 0)
+                                queryStr = matchCondition1 + "AND" + specifyServerDateTime;
+                            else
+                                queryStr = specifyServerDateTime;
+                            qDebug() << __FUNCTION__ <<queryStr;
+                            count = st_client_file::Instance()->queryLogMatchCountDb(info.devNumber, queryStr);
+                            if(count > 0)
+                            {
+                                ackObj["TotalCount"] = count;
+                            }
+                        }
+                        if(count <= 0)
                         {
                             ackJsonObj["code"] = BdExecutionFailed_E;
                             ackJsonObj["msg"] = "No data found!";
@@ -1726,6 +1751,16 @@ namespace ExampleServer{
 
                     QList<BODY_LOG_INFO_S> infos;
                     GS_DB_BODY_C body = infos;
+                    res = st_client_file::Instance()->queryLogDb(info.devNumber, body, queryStr, (info.pageNo-1) * info.pageSize, info.pageSize);
+                    if(!res)
+                    {
+                        qWarning() << "If the time of the matching device is not queried, change the server time to match!";
+                        if(matchCondition1.size() > 0)
+                            queryStr = matchCondition1 + "AND" + specifyServerDateTime;
+                        else
+                            queryStr = specifyServerDateTime;
+                        qDebug() << __FUNCTION__ <<queryStr;
+                    }
                     if(!st_client_file::Instance()->queryLogDb(info.devNumber, body, queryStr, (info.pageNo-1) * info.pageSize, info.pageSize))
                     {
                         ackJsonObj["code"] = BdExecutionFailed_E;
@@ -1744,6 +1779,7 @@ namespace ExampleServer{
                         infoObj["Subtype"] = info1.subtype;
                         infoObj["Result"] = info1.result;
                         infoObj["DateTime"] = info1.dateTime.toString("yyyy-MM-dd hh:mm:ss");
+                        infoObj["ServerDateTime"] = info1.serverDateTime.toString("yyyy-MM-dd hh:mm:ss");
                         infoObj["Message"] = info1.message;
                         infoArray << infoObj;
                     }
@@ -1769,6 +1805,13 @@ RESPONSE_END:
         qint64 wb;
         if(body.currently_sent_bytes > sizeof (body.file_data))
             return res;
+        uint32_t fseek_pos = body.sent_bytes - body.currently_sent_bytes;
+        if(fseek_pos < m_receivedBytes)
+        {
+            qDebug() << QString("receiveFileData   uuid:%1 re-upload   %2/%3").arg(m_uuid).arg(body.sent_bytes).arg(body.file_size);
+            m_uploadFileHandle->seek(fseek_pos);
+            m_receivedBytes = fseek_pos;
+        }
         wb = m_uploadFileHandle->write((char*)body.file_data,body.currently_sent_bytes);
         if(wb == body.currently_sent_bytes)
         {
@@ -1821,12 +1864,17 @@ RESPONSE_END:
         bool res = false;
         if(!m_downloadFileHandle->isOpen())
             return res;
+        if(body.received_bytes != m_sentBytes && body.request_receive_bytes > 0)
+        {
+            qDebug() << QString("sendFileData   uuid:%1 re-download   %2/%3").arg(m_uuid).arg(body.received_bytes).arg(body.file_size);
+            m_downloadFileHandle->seek(body.received_bytes);
+            m_sentBytes = body.received_bytes;
+        }
         if(m_sentBytes == body.received_bytes && body.request_receive_bytes > 0)
         {
             qint64 rb = m_downloadFileHandle->read((char*)tBody.file_data,body.request_receive_bytes);
             if(rb == body.request_receive_bytes)
             {
-                qDebug() << "sendFileData" << rb;
                 m_sentBytes += rb;
                 tBody.currently_sent_bytes = rb;
                 tBody.file_size = body.file_size;
@@ -1834,6 +1882,7 @@ RESPONSE_END:
                 tBody.not_sent_bytes = body.file_size - m_sentBytes;
                 if(m_sentBytes == body.file_size)
                     closeDownloadFile();
+
                 res = true;
             }
         }

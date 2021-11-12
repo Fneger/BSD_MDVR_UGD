@@ -141,19 +141,6 @@ QPushButton#RefreshBtn{
        <string>Crc</string>
       </attribute>
       <layout class="QGridLayout" name="gridLayout_2">
-       <item row="3" column="0">
-        <widget class="QWidget" name="widget" native="true">
-         <property name="minimumSize">
-          <size>
-           <width>0</width>
-           <height>60</height>
-          </size>
-         </property>
-        </widget>
-       </item>
-       <item row="2" column="0">
-        <widget class="QListWidget" name="CrcVersionListWidget"/>
-       </item>
        <item row="1" column="0">
         <layout class="QHBoxLayout" name="horizontalLayout">
          <item>
@@ -333,6 +320,9 @@ QPushButton#RefreshBtn{
           </widget>
          </item>
         </layout>
+       </item>
+       <item row="2" column="0">
+        <widget class="QListWidget" name="CrcVersionListWidget"/>
        </item>
       </layout>
      </widget>

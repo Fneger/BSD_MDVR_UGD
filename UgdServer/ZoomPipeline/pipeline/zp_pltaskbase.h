@@ -29,11 +29,15 @@ namespace ZPTaskEngine{
 
 		bool LockRun();
 		void UnlockRun();
+                void updateActiveTime();
+                qint64 activeTime();
 
 	private:
 		int refCount;
 		QMutex m_mutex_ref;
 		QMutex m_mutex_run;
+                QMutex m_mutex_activeTime;
+                qint64 m_activeTime;
 	signals:
 
 	public slots:

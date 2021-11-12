@@ -7,6 +7,8 @@
 #include <QDebug>
 #include <QSharedMemory>
 #include <QMessageBox>
+#include <QLocale>
+#include <QTranslator>
 #include "st_logger.h"
 
 
@@ -22,7 +24,20 @@ int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
 
-    QSharedMemory shared("share");				//绑定共享内存
+    /*获取当前语种*/
+    QLocale local = QLocale::system();
+    QLocale::Language lang = local.language();
+    QTranslator translator;
+    if(lang == QLocale::Chinese)
+    {
+        bool res = false;
+
+        res = translator.load(qApp->applicationDirPath() + "/translations/enl2chinese_sim.qm");
+        if(res)
+            qApp->installTranslator(&translator);
+    }
+
+    QSharedMemory shared("ugd_client_share");				//绑定共享内存
     if (shared.attach())						//如果绑定成功，则表示共享内存已存在
     {
         QMessageBox::warning(NULL, QObject::tr("Warning"), QObject::tr("Program is running!"));

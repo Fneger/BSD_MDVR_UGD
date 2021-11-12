@@ -12,10 +12,11 @@
 #include "../database/databaseresource.h"
 #include "../cluster/zp_clusterterm.h"
 //#include "./st_cross_svr_node.h"
+class QTimer;
 
 using namespace BdUgdServer;
 namespace ExampleServer{
-	class st_clientNode_baseTrans;
+    class st_clientNode_baseTrans;
 	class st_client_table : public QObject
 	{
 		Q_OBJECT
@@ -66,8 +67,10 @@ namespace ExampleServer{
 		int balanceMax();
 
 	protected:
+        static const int S_ACTIVE_TIMEOUT = 180;    //如果任务节点超过一定时间未活跃，则可以删除该节点
 		//This list hold dead nodes that still in task queue,avoiding crash
 		QList<st_clientNode_baseTrans *> m_nodeToBeDel;
+        QMutex m_mutex_nodeToBeDel;
 
 		//Very important hashes. will be improved for cross-server transfer
 		QMutex m_hash_mutex;
@@ -101,7 +104,7 @@ namespace ExampleServer{
 				ZP_Cluster::zp_ClusterTerm * /*pTerm*/,
 				QObject * /*psock*/,
 				QObject * /*parent*/);
-
+        QTimer *m_delNoActiveNodeTimer;
 
 	signals:
 		void evt_Message (QObject * psource,QString );
@@ -129,6 +132,9 @@ namespace ExampleServer{
 	public slots:
 		//send msg to uuid
         bool SendToNode(quint64 uuid, QByteArray  msg);
+
+    private slots:
+        void on_evt_DelNoActiveNodeTimeout();
 
 	};
 }

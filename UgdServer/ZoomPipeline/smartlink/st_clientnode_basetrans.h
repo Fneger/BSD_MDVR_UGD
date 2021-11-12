@@ -20,6 +20,7 @@ namespace ExampleServer{
 	public:
         explicit st_clientNode_baseTrans(st_client_table * pClientTable, QObject * pClientSock,QObject *parent = 0);
         inline TERMINAL_INFO_S tmnInfo()const { return m_terminalInfo; }
+        void setClientSock(QObject * pClientSock);
 
 		//!deal at most m_nMessageBlockSize messages per deal_message();
 		static const int m_nMessageBlockSize = 8;

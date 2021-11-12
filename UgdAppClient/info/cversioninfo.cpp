@@ -10,6 +10,7 @@ CVersionInfo::CVersionInfo(QListWidgetItem *item,const VERSION_INFO_S &versionIn
 {
     ui->setupUi(this);
     ui->NameLabel->setText(m_info.fileName);
+    ui->NameLabel->installEventFilter(this);
     QString fileSize;
     if(m_info.fileSize >= 1024)
     {
@@ -44,7 +45,7 @@ CVersionInfo::~CVersionInfo()
 
 bool CVersionInfo::eventFilter(QObject *o, QEvent *e)
 {
-    if(o == ui->MessageLabel && e->type()==QEvent::MouseButtonPress)
+    if((o == ui->MessageLabel || o == ui->NameLabel) && e->type()==QEvent::MouseButtonPress)
     {
         m_item->setSelected(true);
     }

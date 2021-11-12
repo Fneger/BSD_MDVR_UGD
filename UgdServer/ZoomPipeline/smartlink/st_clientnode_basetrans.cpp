@@ -22,6 +22,15 @@ namespace ExampleServer{
 	{
         return m_uuid;
 	}
+    void st_clientNode_baseTrans::setClientSock(QObject * pClientSock)
+    {
+        m_pClientSock = pClientSock;
+        m_bUUIDRecieved = false;
+        m_currentReadOffset = 0;
+        m_currentMessageSize = 0;
+        bTermSet = false;
+        m_last_Report = QDateTime::currentDateTime();
+    }
 	QObject * st_clientNode_baseTrans::sock()
 	{
 		return m_pClientSock;
@@ -225,7 +234,7 @@ namespace ExampleServer{
         memcpy(m_DeviceID,&ptr[5],7);
         quint16 pso = 0;
         quint64 source_id = get8bytes(m_DeviceID,&pso) >> 8;
-        qDebug() << msg << m_UplinkMSN << QString("source_id %1").arg(source_id,16,16,QChar('0')) << m_bUUIDRecieved;
+        //qDebug() << msg << m_UplinkMSN << QString("source_id %1").arg(source_id,16,16,QChar('0')) << m_bUUIDRecieved;
         if(m_bUUIDRecieved == false)
         {
             if (bIsValidUserId( source_id) )
@@ -282,7 +291,7 @@ namespace ExampleServer{
         print_data(ptr,len);
         QByteArray sendData((char*)ptr,len);
         emit evt_SendDataToClient(this->sock(),sendData);
-        qDebug() << QString("TestServer send len:%1").arg(len);
+        //qDebug() << QString("TestServer send len:%1").arg(len);
         return len;
     }
 

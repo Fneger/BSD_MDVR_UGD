@@ -190,7 +190,9 @@ typedef struct tag_Terminal_Info{
 //事件类型定义
 enum EventTypeEnum{
     EventGetDeviceFiles_E,  //获取设备文件
-    EventUpgradeDevice_E,   //升级设备
+    EventUpgradeDeviceCrc_E,   //升级设备Crc
+    EventUpgradeDeviceMcu_E,   //升级设备Mcu
+    EventUpgradeDevicePara_E,   //升级设备Para
     EventTypeMax_E
 };
 
@@ -366,6 +368,7 @@ typedef struct {
     QDateTime startDateTime;   //查询开始时间
     QDateTime endDateTime;  //查询结束事件
     QDateTime dateTime;     //日志产生事件
+    QDateTime serverDateTime;   //服务器本地时间
     bool fuzzySearch;   //是否采用模糊匹配方式搜索
     int pageNo;//页码
     int pageSize;   //页大小

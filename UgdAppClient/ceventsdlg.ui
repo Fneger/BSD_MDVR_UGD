@@ -81,7 +81,7 @@ QListWidget::item::selected:active
      <item>
       <widget class="QPushButton" name="AddEventBtn">
        <property name="text">
-        <string>Add Event</string>
+        <string>Add</string>
        </property>
        <property name="icon">
         <iconset resource="images.qrc">
@@ -98,7 +98,7 @@ QListWidget::item::selected:active
      <item>
       <widget class="QPushButton" name="RemoveEventBtn">
        <property name="text">
-        <string>Remove Event</string>
+        <string>Delete</string>
        </property>
        <property name="icon">
         <iconset resource="images.qrc">

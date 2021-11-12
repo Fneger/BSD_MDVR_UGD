@@ -7,6 +7,9 @@ CCalendarDlg::CCalendarDlg(QWidget *parent) :
 {
     ui->setupUi(this);
     this->setWindowTitle(tr("Date Time Edit"));
+    QLocale local = QLocale::system();
+    QLocale::Language lang = local.language();
+    ui->CalendarWidget->setLocale(lang);
 }
 
 CCalendarDlg::~CCalendarDlg()

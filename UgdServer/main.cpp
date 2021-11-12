@@ -1,6 +1,8 @@
 #include <QApplication>
 #include "st_logger.h"
 #include "zpmainframe.h"
+#include <QSharedMemory>
+#include <QMessageBox>
 
 
 
@@ -14,6 +16,13 @@ void stMessageOutput(QtMsgType type, const QMessageLogContext &context, const QS
 int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
+    QSharedMemory shared("ugd_server_share");				//绑定共享内存
+    if (shared.attach())						//如果绑定成功，则表示共享内存已存在
+    {
+        QMessageBox::warning(NULL, QObject::tr("Warning"), QObject::tr("Program is running!"));
+        return 0;
+    }
+    shared.create(1);
     a.setApplicationName("MdvrUgdServer");
 
 //    Install message handler

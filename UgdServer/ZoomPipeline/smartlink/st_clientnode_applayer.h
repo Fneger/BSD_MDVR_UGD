@@ -18,6 +18,7 @@ namespace ExampleServer{
 	public:
 		explicit st_clientNodeAppLayer(st_client_table * pClientTable, QObject * pClientSock,QObject *parent = 0);
         ~st_clientNodeAppLayer();
+
     protected:
 		//!in App-Layer, it Split the messages into dealers.
         int deal_current_message_block();
