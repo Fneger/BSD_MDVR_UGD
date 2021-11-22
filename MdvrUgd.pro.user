@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE QtCreatorProject>
-<!-- Written by QtCreator 4.10.0, 2021-11-12T11:29:46. -->
+<!-- Written by QtCreator 4.10.0, 2021-11-18T16:01:44. -->
 <qtcreator>
  <data>
   <variable>EnvironmentId</variable>
@@ -644,7 +644,7 @@
     <value type="bool" key="RunConfiguration.UseQmlDebugger">false</value>
     <value type="bool" key="RunConfiguration.UseQmlDebuggerAuto">true</value>
     <value type="QString" key="RunConfiguration.WorkingDirectory"></value>
-    <value type="QString" key="RunConfiguration.WorkingDirectory.default">E:/Share/qt-project/MdvrUgd/build-MdvrUgd-Desktop_Qt_5_12_5_MSVC2017_32bit-Release/UgdAppClient</value>
+    <value type="QString" key="RunConfiguration.WorkingDirectory.default">E:/Share/qt-project/MdvrUgd/build_win32/UgdAppClient</value>
    </valuemap>
    <valuemap type="QVariantMap" key="ProjectExplorer.Target.RunConfiguration.1">
     <value type="QString" key="Analyzer.Perf.CallgraphMode">dwarf</value>
@@ -710,7 +710,7 @@
     <value type="bool" key="RunConfiguration.UseQmlDebugger">false</value>
     <value type="bool" key="RunConfiguration.UseQmlDebuggerAuto">true</value>
     <value type="QString" key="RunConfiguration.WorkingDirectory"></value>
-    <value type="QString" key="RunConfiguration.WorkingDirectory.default">E:/Share/qt-project/MdvrUgd/build-MdvrUgd-Desktop_Qt_5_12_5_MSVC2017_32bit-Release/UgdServer</value>
+    <value type="QString" key="RunConfiguration.WorkingDirectory.default">E:/Share/qt-project/MdvrUgd/build_win32/UgdServer</value>
    </valuemap>
    <value type="int" key="ProjectExplorer.Target.RunConfigurationCount">2</value>
   </valuemap>
