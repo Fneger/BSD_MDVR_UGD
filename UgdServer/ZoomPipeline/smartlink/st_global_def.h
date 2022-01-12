@@ -15,6 +15,7 @@ typedef enum{
     TB_MCU_VERSION_INFO_E,  //Mcu版本信息
     TB_GROUP_VERSION_INFO_E,    //组合文件信息
     TB_LOG_INFO_E,  //日志信息
+    TB_TMN_INFO_LOG_INFO_E,  //终端登录信息日志
     TB_TYPE_MAX,
 }GS_BODY_TYPE;
 
@@ -134,6 +135,31 @@ typedef struct {
     int savedItemNum; //已保存行数
 }LOG_TABLE_MAN_S;
 
+//服务器地址信息
+typedef struct{
+    QString ipAddr;
+    int port;
+} BODY_SERVER_INFO_S;
+
+
+//设置终端信息
+typedef struct{
+    int id;
+    QString productName;   //产品名称
+    QString deviceNum;		/*机号(范围:000000~999999*/
+    QString phoneNumber;   /*手机号*/
+    QString licenseNum;    /*车牌号码*/
+    QString videoId;       /*视频ID*/
+    QString terminalId;    //终端ID
+    QString imeiNumber; //4G模块 IMEI
+    QString crcVersion;    //crc版本号
+    QString mcuVersion;    //mcu版本号
+    int authorizationStatus; //授权状态，0：未授权，1：已授权，2：授权失败
+    QList<BODY_SERVER_INFO_S> serverInfos; //连接平台信息
+    QDateTime dateTime;   //日志产生时间
+    QDateTime serverDateTime;   //服务器本地时间
+}BODY_TMN_INFO_S;
+
 
 extern const QString S_USERS_INFO_TABLE_NAME;
 extern const QString S_PRODUCTS_INFO_TABLE_NAME;
@@ -141,6 +167,7 @@ extern const QString S_CRC_VERSION_INFO_TABLE_NAME;
 extern const QString S_MCU_VERSION_INFO_TABLE_NAME;
 extern const QString S_GROUP_VERSION_INFO_TABLE_NAME;
 extern const QString S_LOG_INFO_TABLE_NAME;
+extern const QString S_TMN_INFO_LOG_INFO_TABLE_NAME;
 extern const int S_QUERY_ITEM_NUM_MAX;
 extern const int S_LOG_TABLE_DEV_MAX;
 extern const int S_LOG_TABLE_ITEM_MAX;

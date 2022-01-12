@@ -267,6 +267,8 @@ typedef enum BD_REQUEST_CODE {
     BdRequestSetDefaultGroupFileVersion_E,  //设置组合文件默认版本
     BdRequestAddLog_E,  //添加日志
     BdRequestQueryLog_E, //查询日志
+    BdRequestSetTerminalInfo_E, //请求设置终端信息
+    BdRequestQueryTerminalInfoLog_E, //查询终端信息日志
 }BD_JSON_REQUEST_CODE_E;
 
 //执行码定义
@@ -407,6 +409,29 @@ typedef struct BD_REQUEST_SET_EVENT_STATUS{
     QString ackPara1; //返回参数
     QString ackPara2; //返回参数
 }BD_REQUEST_SET_EVENT_STATUS_S;
+
+//服务器地址信息
+typedef struct BD_SERVER_INFO{
+    QString ipAddr;
+    int port;
+} BD_SERVER_INFO_S;
+
+//设置终端信息
+typedef struct BD_REQUEST_SET_TMN_INFO{
+     QString productName;   //产品名称
+     QString deviceNum;		/*机号(范围:000000~999999*/
+     QString phoneNumber;   /*手机号*/
+     QString licenseNum;    /*车牌号码*/
+     QString videoId;       /*视频ID*/
+     QString terminalId;    //终端ID
+     QString imeiNumber; //4G模块 IMEI
+     QString crcVersion;    //crc版本号
+     QString mcuVersion;    //mcu版本号
+     int authorizationStatus; //授权状态，0：未授权，1：已授权，2：授权失败
+     QList<BD_SERVER_INFO_S> serverInfos; //连接平台信息
+     QDateTime dateTime;   //日志产生时间
+     QDateTime serverDateTime;   //服务器本地时间
+}BD_REQUEST_SET_TMN_INFO_S;
 
 #pragma pack(pop)
 

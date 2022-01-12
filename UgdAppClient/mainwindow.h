@@ -67,6 +67,7 @@ private:
 private:
     Ui::MainWindow *ui;
     static MainWindow *S_pThis;
+    static const int S_TEST_THREAD_NUM = 8;
     QStandardItemModel *m_deviceItemModel;
     QItemSelectionModel *m_itemSelectModel;
     st_packet_tool m_packetTools;
@@ -76,7 +77,7 @@ private:
     QProgressBar *m_tipsProgressBar;
     QList<CProductVersionInfo*> m_productList;
     QScopedPointer<CTcpClient> m_tcpClient;
-    QScopedPointer<CTcpClientTest> m_tcpCilentTests;
+    QScopedPointer<CTcpClientTest> m_tcpCilentTests[S_TEST_THREAD_NUM];
     bool m_bCancelUpload;
     bool m_bCancelDownload;
     int m_nTimer;

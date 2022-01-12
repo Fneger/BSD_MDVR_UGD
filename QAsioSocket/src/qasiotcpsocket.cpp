@@ -72,6 +72,7 @@ void QAsioTcpsocket::disconnectFromHost()
 {
     if (state() == UnconnectedState) return;
     con_->connection->disconnectFromHost();
+    emit disConnected();
 }
 
 void QAsioTcpsocket::sendData(const char * data, int size)

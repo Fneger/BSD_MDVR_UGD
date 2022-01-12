@@ -6,6 +6,7 @@
 #include <QSet>
 #include "st_clientnode_basetrans.h"
 #include "st_message.h"
+#include "st_client_file.h"
 //#include "st_msg_applayer.h"
 using namespace BdUgdServer;
 class QFile;
@@ -64,6 +65,7 @@ namespace ExampleServer{
         uint32_t m_sentBytes;
         uint64_t m_totalReceivedTestBytes; //所接收到总测试字节数
         EVENT_INFO_S m_currentEvent;
+        QScopedPointer<st_client_file> m_fileTool;
 	};
 
 }

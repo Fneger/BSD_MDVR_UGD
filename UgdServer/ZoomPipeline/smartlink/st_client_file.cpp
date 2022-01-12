@@ -5,33 +5,23 @@
 #include <QJsonArray>
 #include <QTimer>
 #include "databaseresource.h"
-#include "databasetool.h"
+
 
 using namespace ZPDatabase;
 
 namespace BdUgdServer {
-st_client_file *st_client_file::S_pThis = nullptr;
+ExampleServer::st_client_table * st_client_file::m_pClientTable = nullptr;
 st_client_file::st_client_file()
 {
     m_bakTimer = new QTimer();
     m_bakTimer->setInterval(24*3600*1000);
     //m_bakTimer->start();
+    m_dbTool.reset(new DatabaseTool());
 }
 
 st_client_file::~st_client_file()
 {
     delete m_bakTimer;
-}
-
-
-st_client_file *st_client_file::Instance()
-{
-    static QMutex s_dataMutex;
-    s_dataMutex.lock();
-    if(S_pThis == nullptr)
-        S_pThis = new st_client_file;
-    s_dataMutex.unlock();
-    return S_pThis;
 }
 
 void st_client_file::slot_bakTimerTimeout()
@@ -168,7 +158,7 @@ bool st_client_file::openProductDb(const QString &fileName, QJsonDocument &doc)
     BODY_PRODUCT_INFO_S productInfo;
     productInfo.name = fileName;
     GS_DB_BODY_C body = productInfo;
-    res = DatabaseTool::Instance()->queryItem(db, TB_PRODUCTS_INFO_E, body);
+    res = m_dbTool->queryItem(db, TB_PRODUCTS_INFO_E, body);
     if(res)
     {
         bool queryRes = false;
@@ -192,7 +182,7 @@ bool st_client_file::openProductDb(const QString &fileName, QJsonDocument &doc)
         dbBody = crcInfos;
         QJsonArray crcVersionsArray;
         QString queryStr = QString("product_name = \"%1\"").arg(fileName);
-        queryRes = DatabaseTool::Instance()->queryItems(db, TB_CRC_VERSION_INFO_E, dbBody, queryStr);
+        queryRes = m_dbTool->queryItems(db, TB_CRC_VERSION_INFO_E, dbBody, queryStr, "");
         if(queryRes)
         {
             crcInfos = boost::any_cast<QList<BODY_CRC_VERSION_INFO_S>>(dbBody);
@@ -221,7 +211,7 @@ bool st_client_file::openProductDb(const QString &fileName, QJsonDocument &doc)
         QList<BODY_MCU_VERSION_INFO_S> mcuVerInfos;
         dbBody = mcuVerInfos;
         queryStr = QString("product_name = \"%1\"").arg(fileName);
-        queryRes = DatabaseTool::Instance()->queryItems(db, TB_MCU_VERSION_INFO_E, dbBody, queryStr);
+        queryRes = m_dbTool->queryItems(db, TB_MCU_VERSION_INFO_E, dbBody, queryStr, "");
         if(queryRes)
         {
             mcuVerInfos = boost::any_cast<QList<BODY_MCU_VERSION_INFO_S>>(dbBody);
@@ -273,7 +263,7 @@ bool st_client_file::openProductDb(const QString &fileName, QJsonDocument &doc)
         dbBody = groupInfos;
         QJsonArray groupFileArray;
         queryStr = QString("product_name = \"%1\"").arg(fileName);
-        queryRes = DatabaseTool::Instance()->queryItems(db, TB_GROUP_VERSION_INFO_E, dbBody, queryStr);
+        queryRes = m_dbTool->queryItems(db, TB_GROUP_VERSION_INFO_E, dbBody, queryStr, "");
         if(queryRes)
         {
             groupInfos = boost::any_cast<QList<BODY_GROUP_VERSION_INFO_S>>(dbBody);
@@ -298,7 +288,7 @@ bool st_client_file::addDb(GS_BODY_TYPE nType, const GS_DB_BODY_C &body)
 {
     bool res = false;
     QSqlDatabase db = m_pClientTable->dbRes()->databse(m_pClientTable->Database_UserAcct());
-    res = DatabaseTool::Instance()->insertItem(db, nType, body);
+    res = m_dbTool->insertItem(db, nType, body);
     if(!res)
         qWarning() << "Failed to add to database!";
     return res;
@@ -308,7 +298,7 @@ bool st_client_file::removeDb(GS_BODY_TYPE nType, const GS_DB_BODY_C &body)
 {
     bool res = false;
     QSqlDatabase db = m_pClientTable->dbRes()->databse(m_pClientTable->Database_UserAcct());
-    res = DatabaseTool::Instance()->deleteItem(db, nType, body);
+    res = m_dbTool->deleteItem(db, nType, body);
     if(!res)
         qWarning() << "Failed to remove from database!";
     return res;
@@ -318,7 +308,7 @@ bool st_client_file::updateDb(GS_BODY_TYPE nType, const GS_DB_BODY_C &body)
 {
     bool res = false;
     QSqlDatabase db = m_pClientTable->dbRes()->databse(m_pClientTable->Database_UserAcct());
-    res = DatabaseTool::Instance()->updateItem(db, nType, body);
+    res = m_dbTool->updateItem(db, nType, body);
     if(!res)
         qWarning() << "Failed to update database!";
     return res;
@@ -328,7 +318,7 @@ bool st_client_file::queryDb(GS_BODY_TYPE nType, GS_DB_BODY_C &body)
 {
     bool res = false;
     QSqlDatabase db = m_pClientTable->dbRes()->databse(m_pClientTable->Database_UserAcct());
-    res = DatabaseTool::Instance()->queryItem(db, nType, body);
+    res = m_dbTool->queryItem(db, nType, body);
     if(!res)
         qWarning() << "Failed to query database!";
     return res;
@@ -338,7 +328,7 @@ bool st_client_file::queryDb(GS_BODY_TYPE nType, GS_DB_BODY_C &body, const QStri
 {
     bool res = false;
     QSqlDatabase db = m_pClientTable->dbRes()->databse(m_pClientTable->Database_UserAcct());
-    res = DatabaseTool::Instance()->queryItems(db, nType, body, queryCondition);
+    res = m_dbTool->queryItems(db, nType, body, queryCondition, "");
     if(!res)
         qWarning() << "Failed to query database!";
     return res;
@@ -388,29 +378,35 @@ bool st_client_file::removeProductDb(const QString &productName)
     return res;
 }
 
-bool st_client_file::createLogTableDb(const QString &name)
+bool st_client_file::createLogTableDb(const QString &name, bool isTmnInfo)
 {
     bool res = false;
     QString tbName = name.toLower() + "_" + S_LOG_INFO_TABLE_NAME;
+    if(isTmnInfo)
+        tbName = name.toLower() + "_" + S_TMN_INFO_LOG_INFO_TABLE_NAME;
     QSqlDatabase db = m_pClientTable->dbRes()->databse(m_pClientTable->Database_UserAcct());
-    if(DatabaseTool::Instance()->tableExists(db, tbName))
+    if(m_dbTool->tableExists(db, tbName))
     {
         qDebug() << "Log table exists." << tbName;
         return true;
     }
-    DatabaseTool::Instance()->setExtTableName(name);
-    res = DatabaseTool::Instance()->createTable(db, TB_LOG_INFO_E);
+    if(isTmnInfo)
+        res = m_dbTool->createTable(db, TB_TMN_INFO_LOG_INFO_E, name);
+    else
+        res = m_dbTool->createTable(db, TB_LOG_INFO_E, name);
     if(!res)
         qWarning() << "Create product log table failed!";
     return res;
 }
 
-bool st_client_file::deleteLogTableDb(const QString &name)
+bool st_client_file::deleteLogTableDb(const QString &name, bool isTmnInfo)
 {
     bool res = false;
     QSqlDatabase db = m_pClientTable->dbRes()->databse(m_pClientTable->Database_UserAcct());
-    DatabaseTool::Instance()->setExtTableName(name.toLower());
-    res = DatabaseTool::Instance()->deleteTable(db, TB_LOG_INFO_E);
+    if(isTmnInfo)
+        res = m_dbTool->deleteTable(db, TB_TMN_INFO_LOG_INFO_E, name.toLower());
+    else
+        res = m_dbTool->deleteTable(db, TB_LOG_INFO_E, name.toLower());
     if(!res)
         qWarning() << "Remove product log table failed!";
     return res;
@@ -419,46 +415,73 @@ bool st_client_file::deleteLogTableDb(const QString &name)
 bool st_client_file::addLogDb(const BODY_LOG_INFO_S &log)
 {
     bool res = false;
-    DatabaseTool *dbTool = DatabaseTool::Instance();
     QSqlDatabase db = m_pClientTable->dbRes()->databse(m_pClientTable->Database_UserAcct());
-    QString tblName = dbTool->getLogTableName(log.devNumber);
-    dbTool->setExtTableName(tblName);
-    if(!dbTool->logTableExists(db, log.devNumber)) //数据表为创建，创建后再添加数据
+    QString tblName = m_dbTool->getLogTableName(log.devNumber);
+    if(!m_dbTool->logTableExists(db, log.devNumber)) //数据表未创建，创建后再添加数据
     {
-        res = dbTool->createTable(db, TB_LOG_INFO_E);
+        res = m_dbTool->createTable(db, TB_LOG_INFO_E, tblName);
         if(!res)
         {
             qWarning() << "Failed to create log table!" << tblName;
             return res;
         }
-        dbTool->setLogTableExists(db, log.devNumber, true);
+        m_dbTool->setLogTableExists(db, log.devNumber, true);
         qDebug() << "Created log table ok" << tblName;
     }
     GS_DB_BODY_C body = log;
-    res = DatabaseTool::Instance()->insertItem(db, TB_LOG_INFO_E, body);
+    res = m_dbTool->insertItem(db, TB_LOG_INFO_E, body, tblName);
+
     if(!res)
         qWarning() << "Failed to add log to database!";
     return res;
 }
 
-bool st_client_file::queryLogDb(const QString &devNumber, GS_DB_BODY_C &body, const QString &queryCondition, int startId, int nItemCntMax)
+bool st_client_file::addTmnInfoLogDb(const BODY_TMN_INFO_S &log)
 {
     bool res = false;
-    DatabaseTool *dbTool = DatabaseTool::Instance();
     QSqlDatabase db = m_pClientTable->dbRes()->databse(m_pClientTable->Database_UserAcct());
-    QString tblName = dbTool->getLogTableName(devNumber);
-    dbTool->setExtTableName(tblName);
-    res = DatabaseTool::Instance()->queryItems(db, TB_LOG_INFO_E, body, queryCondition, startId, nItemCntMax);
+    QString tblName = m_dbTool->getLogTableName(log.deviceNum);
+    if(!m_dbTool->logTableExists(db, log.deviceNum, true)) //数据表未创建，创建后再添加数据
+    {
+        res = m_dbTool->createTable(db, TB_TMN_INFO_LOG_INFO_E, tblName);
+        if(!res)
+        {
+            qWarning() << "Failed to create log table!" << tblName;
+            return res;
+        }
+        m_dbTool->setLogTableExists(db, log.deviceNum, true, true);
+        qDebug() << "Created log table ok" << tblName;
+    }
+    GS_DB_BODY_C body = log;
+    res = m_dbTool->insertItem(db, TB_TMN_INFO_LOG_INFO_E, body, tblName);
+
+    if(!res)
+        qWarning() << "Failed to add log to database!";
+    return res;
+}
+
+bool st_client_file::queryLogDb(const QString &devNumber, GS_DB_BODY_C &body, const QString &queryCondition, bool isTmnInfo, int startId, int nItemCntMax)
+{
+    bool res = false;
+    QSqlDatabase db = m_pClientTable->dbRes()->databse(m_pClientTable->Database_UserAcct());
+    QString tblName = m_dbTool->getLogTableName(devNumber);
+    if(isTmnInfo)
+        res = m_dbTool->queryItems(db, TB_TMN_INFO_LOG_INFO_E, body, queryCondition, tblName, startId, nItemCntMax);
+    else
+        res = m_dbTool->queryItems(db, TB_LOG_INFO_E, body, queryCondition, tblName, startId, nItemCntMax);
     if(!res)
         qWarning() << "Failed to query log from database!";
     return res;
 }
 
-int st_client_file::queryLogMatchCountDb(const QString &devNumber, const QString &queryCondition)
+int st_client_file::queryLogMatchCountDb(const QString &devNumber, const QString &queryCondition, bool isTmnInfo)
 {
     QSqlDatabase db = m_pClientTable->dbRes()->databse(m_pClientTable->Database_UserAcct());
-    DatabaseTool::Instance()->setExtTableName(DatabaseTool::Instance()->getLogTableName(devNumber));
-    return DatabaseTool::Instance()->queryMatchItemsCount(db, TB_LOG_INFO_E, queryCondition);
+     QString tblName = m_dbTool->getLogTableName(devNumber);
+     if(isTmnInfo)
+         return m_dbTool->queryMatchItemsCount(db, TB_TMN_INFO_LOG_INFO_E, queryCondition, tblName);
+     else
+         return m_dbTool->queryMatchItemsCount(db, TB_LOG_INFO_E, queryCondition, tblName);
 }
 
 bool st_client_file::saveProductJson(const QString &fileName,QJsonDocument &doc)
@@ -516,7 +539,7 @@ bool st_client_file::openAuthUsersDb(QJsonDocument &doc)
     GS_DB_BODY_C bodys;
     QList<USER_INFO_S> items;
     bodys = items;
-    res = DatabaseTool::Instance()->Instance()->queryItems(db, TB_USERS_INFO_E, bodys);
+    res = m_dbTool->queryItems(db, TB_USERS_INFO_E, bodys);
     if(res)
     {
         QList<USER_INFO_S> items = boost::any_cast<QList<USER_INFO_S>>(bodys);
@@ -581,9 +604,9 @@ bool st_client_file::addAuthUser(const USER_INFO_S &userInfo)
     QSqlDatabase db = m_pClientTable->dbRes()->databse(m_pClientTable->Database_UserAcct());
     GS_DB_BODY_C body;
     body = tUserInfo;
-    res = DatabaseTool::Instance()->Instance()->queryItem(db, TB_USERS_INFO_E, body);
+    res = m_dbTool->queryItem(db, TB_USERS_INFO_E, body);
     if(!res)
-        res = DatabaseTool::Instance()->insertItem(db, TB_USERS_INFO_E, body);
+        res = m_dbTool->insertItem(db, TB_USERS_INFO_E, body);
 #else
     QJsonDocument userDoc;
     if(openAuthUsers(userDoc))
@@ -621,7 +644,7 @@ bool st_client_file::removeAuthUser(const USER_INFO_S &userInfo)
     GS_DB_BODY_C body;
     body = userInfo;
     QSqlDatabase db = m_pClientTable->dbRes()->databse(m_pClientTable->Database_UserAcct());
-    res = DatabaseTool::Instance()->deleteItem(db, TB_USERS_INFO_E, body);
+    res = m_dbTool->deleteItem(db, TB_USERS_INFO_E, body);
 #else
     QJsonDocument userDoc;
     if(openAuthUsers(userDoc))
@@ -649,7 +672,7 @@ bool st_client_file::editAuthUser(const USER_INFO_S &userInfo)
     GS_DB_BODY_C body;
     body = tUserInfo;
     QSqlDatabase db = m_pClientTable->dbRes()->databse(m_pClientTable->Database_UserAcct());
-    res = DatabaseTool::Instance()->updateItem(db, TB_USERS_INFO_E, body);
+    res = m_dbTool->updateItem(db, TB_USERS_INFO_E, body);
 #else
     if(removeAuthUser(userInfo))
     {
@@ -668,7 +691,7 @@ bool st_client_file::loginClient(const BD_TMN_LOGIN_INFO_S loginInfo, USER_INFO_
     GS_DB_BODY_C body;
     body = userInfo;
     QSqlDatabase db = m_pClientTable->dbRes()->databse(m_pClientTable->Database_UserAcct());
-    bool res = DatabaseTool::Instance()->Instance()->queryItem(db, TB_USERS_INFO_E, body);
+    bool res = m_dbTool->queryItem(db, TB_USERS_INFO_E, body);
     userInfo =  boost::any_cast<USER_INFO_S>(body);
     if(res)
     {
@@ -727,16 +750,20 @@ void st_client_file::syncJson2Database()
 #ifndef USE_DATABASE
     return;
 #endif
+    QScopedPointer<DatabaseTool> dbTool;
+    dbTool.reset(new DatabaseTool);
+    QScopedPointer<st_client_file> fileTool;
+    fileTool.reset(new st_client_file);
     //同步用户信息
     QSqlDatabase db = m_pClientTable->dbRes()->databse(m_pClientTable->Database_UserAcct());
-    bool dbExist = DatabaseTool::Instance()->tableExists(db, S_USERS_INFO_TABLE_NAME);
+    bool dbExist = dbTool->tableExists(db, S_USERS_INFO_TABLE_NAME);
     if(!dbExist)
     {
-        bool res = DatabaseTool::Instance()->createTable(db, TB_USERS_INFO_E);
+        bool res = dbTool->createTable(db, TB_USERS_INFO_E);
         if(res)
         {
             QJsonDocument userDoc;
-            if(openAuthUsers(userDoc))
+            if(fileTool->openAuthUsers(userDoc))
             {
                 QJsonObject usersObj = userDoc.object();
                 QJsonObject::const_iterator it = usersObj.begin();
@@ -758,7 +785,7 @@ void st_client_file::syncJson2Database()
                         }
                         GS_DB_BODY_C body;
                         body = userInfo;
-                        DatabaseTool::Instance()->insertItem(db, TB_USERS_INFO_E, body);
+                        dbTool->insertItem(db, TB_USERS_INFO_E, body);
                     }
                     it++;
                 }
@@ -767,13 +794,13 @@ void st_client_file::syncJson2Database()
     }
     //return;
     //同步产品信息
-    dbExist = DatabaseTool::Instance()->tableExists(db, S_PRODUCTS_INFO_TABLE_NAME);
+    dbExist = dbTool->tableExists(db, S_PRODUCTS_INFO_TABLE_NAME);
     if(!dbExist)
     {
-        DatabaseTool::Instance()->createTable(db, TB_GROUP_VERSION_INFO_E);
-        DatabaseTool::Instance()->createTable(db, TB_MCU_VERSION_INFO_E);
-        DatabaseTool::Instance()->createTable(db, TB_CRC_VERSION_INFO_E);
-        bool res = DatabaseTool::Instance()->createTable(db, TB_PRODUCTS_INFO_E);
+        dbTool->createTable(db, TB_GROUP_VERSION_INFO_E);
+        dbTool->createTable(db, TB_MCU_VERSION_INFO_E);
+        dbTool->createTable(db, TB_CRC_VERSION_INFO_E);
+        bool res = dbTool->createTable(db, TB_PRODUCTS_INFO_E);
         if(res)
         {
             QString saveRootPath = "./version/";
@@ -787,7 +814,7 @@ void st_client_file::syncJson2Database()
                     continue;
                 QJsonDocument productDoc;
                 QString fileName = saveRootPath + productName + "/" + productFile;
-                if(!st_client_file::Instance()->openProductJson(fileName,productDoc))
+                if(!fileTool->openProductJson(fileName,productDoc))
                     continue;
                 if(!productDoc.object().contains(productName))
                     continue;
@@ -817,7 +844,7 @@ void st_client_file::syncJson2Database()
                     if(infoObj.contains("Custom"))
                         info.custom = infoObj["Custom"].toString();
                     GS_DB_BODY_C body = info;
-                    DatabaseTool::Instance()->insertItem(db, TB_CRC_VERSION_INFO_E, body);
+                    dbTool->insertItem(db, TB_CRC_VERSION_INFO_E, body);
                 }
 
                 //MCU
@@ -840,7 +867,7 @@ void st_client_file::syncJson2Database()
                         info.fileName = infoObj["Name"].toString();
                         info.fileSize = infoObj["FileSize"].toString().toUInt();
                         GS_DB_BODY_C body = info;
-                        DatabaseTool::Instance()->insertItem(db, TB_MCU_VERSION_INFO_E, body);
+                        dbTool->insertItem(db, TB_MCU_VERSION_INFO_E, body);
                     }
                 }
 
@@ -865,17 +892,17 @@ void st_client_file::syncJson2Database()
                         info.subFileSize = fileInfoObj["FileSize"].toString().toUInt();
                         info.subFileMessage = fileInfoObj["Message"].toString();
                         GS_DB_BODY_C body = info;
-                        DatabaseTool::Instance()->insertItem(db, TB_GROUP_VERSION_INFO_E, body);
+                        dbTool->insertItem(db, TB_GROUP_VERSION_INFO_E, body);
 
                     }
                     if(fileInfoArray.isEmpty())
                     {
                         GS_DB_BODY_C body = info;
-                        DatabaseTool::Instance()->insertItem(db, TB_GROUP_VERSION_INFO_E, body);
+                        dbTool->insertItem(db, TB_GROUP_VERSION_INFO_E, body);
                     }
                 }
                 GS_DB_BODY_C body = baseInfo;
-                DatabaseTool::Instance()->insertItem(db, TB_PRODUCTS_INFO_E, body);
+                dbTool->insertItem(db, TB_PRODUCTS_INFO_E, body);
             }
         }
         else

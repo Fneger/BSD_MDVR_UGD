@@ -37,7 +37,7 @@ namespace ZPNetwork{
 		//RubbishCan Functions
 		void Empty_RabishCan();
 		//Size of the RubbishCan
-		static int RUBBISH_CAN_SIZE;
+        static int RUBBISH_CAN_SIZE;
 
 	private:
 		bool m_bActivated;
@@ -76,7 +76,7 @@ namespace ZPNetwork{
 
 	protected slots:
 		//when client closed, this slot will be activated.
-		void client_closed();
+        void client_closed();
         void new_data_recieved(const QByteArray &data);
 		void some_data_sended(qint64);
         void displayError(const QString &erro);

@@ -67,7 +67,7 @@ namespace ExampleServer{
 		int balanceMax();
 
 	protected:
-        static const int S_ACTIVE_TIMEOUT = 180;    //如果任务节点超过一定时间未活跃，则可以删除该节点
+        static const int S_ACTIVE_TIMEOUT = 1800;    //如果任务节点超过一定时间未活跃，则可以删除该节点
 		//This list hold dead nodes that still in task queue,avoiding crash
 		QList<st_clientNode_baseTrans *> m_nodeToBeDel;
         QMutex m_mutex_nodeToBeDel;
@@ -135,6 +135,11 @@ namespace ExampleServer{
 
     private slots:
         void on_evt_DelNoActiveNodeTimeout();
+
+    private:
+        void nodeReadyToDel(st_clientNode_baseTrans *pNode);
+        st_clientNode_baseTrans *findNodeFromToBeDel(quint64 nId);
+        void removeNodeFromToBeDel(st_clientNode_baseTrans *pNode);
 
 	};
 }

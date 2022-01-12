@@ -7,7 +7,6 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QDir>
-#include "st_client_file.h"
 #include "st_client_event.h"
 
 
@@ -29,7 +28,9 @@ namespace ExampleServer{
         userInfo.name = "admin";
         userInfo.password = "456123";
         userInfo.auth = BdUserAuthAdmin_E;
-        st_client_file::Instance()->addAuthUser(userInfo);
+
+        m_fileTool.reset(new st_client_file);
+        m_fileTool->addAuthUser(userInfo);
 
         m_uploadFileHandle.reset(new QFile);
         m_downloadFileHandle.reset(new QFile);
@@ -77,7 +78,7 @@ namespace ExampleServer{
             loginResponse.models_id = 0xaaaa;
             loginResponse.displacement = 0;
             loginResponse.needUpgrade = 0;
-            if(st_client_file::Instance()->loginClient(loginInfo,m_userInfo))
+            if(m_fileTool->loginClient(loginInfo,m_userInfo))
             {
                 loginResponse.auth = m_userInfo.auth+1;
             }
@@ -148,9 +149,10 @@ namespace ExampleServer{
 //             json.append((char*)msgdata,strlen((char*)msgdata)+1);
 //             //strcpy(json,(char*)msgdata);
              //msg << QString::fromUtf8((char*)msgdata) + "\n";
+             //qDebug() << "Terminal Json" << QString::fromUtf8((char*)msgdata);
              QJsonDocument ackDoc;
              reponseRequest((char*)msgdata,ackDoc);
-             //qDebug() << ackDoc;
+             //qDebug() << "Ack Json" << ackDoc;
              sendPacket(BdPlatformAckJson_E,ackDoc.toJson(QJsonDocument::Indented).data(),0);
         }
             break;
@@ -249,7 +251,7 @@ namespace ExampleServer{
                     }
 
                     GS_DB_BODY_C body = info;
-                    if(st_client_file::Instance()->addDb(TB_MCU_VERSION_INFO_E, body))
+                    if(m_fileTool->addDb(TB_MCU_VERSION_INFO_E, body))
                     {
                         ackJsonObj["code"] = BdExecutionSucceeded_E;
                         ackJsonObj["msg"] = "Add mcu version successfully!";
@@ -280,7 +282,7 @@ namespace ExampleServer{
                     }
 
                     GS_DB_BODY_C body = info;
-                    if(st_client_file::Instance()->removeDb(TB_MCU_VERSION_INFO_E, body))
+                    if(m_fileTool->removeDb(TB_MCU_VERSION_INFO_E, body))
                     {
                         ackJsonObj["code"] = BdExecutionSucceeded_E;
                         ackJsonObj["msg"] = "Remove mcu version successfully!";
@@ -313,7 +315,7 @@ namespace ExampleServer{
                     info.fileName = mcuObj["FileName"].toString();
                     info.fileSize = mcuObj["FileSize"].toString().toUInt();
                     GS_DB_BODY_C body = info;
-                    if(!st_client_file::Instance()->queryDb(TB_MCU_VERSION_INFO_E, body))
+                    if(!m_fileTool->queryDb(TB_MCU_VERSION_INFO_E, body))
                     {
                         ackJsonObj["code"] = BdExecutionFailed_E;
                         ackJsonObj["msg"] = "Mcu version do not exists!";
@@ -325,7 +327,7 @@ namespace ExampleServer{
                     QList<BODY_MCU_VERSION_INFO_S> infos;
                     body = infos;
                     QString queryStr = QString("product_name = \"%1\" AND mcu_type_name = \"%2\" AND is_default_version = TRUE").arg(info.productName).arg(info.mcuTypeName);
-                    if(st_client_file::Instance()->queryDb(TB_MCU_VERSION_INFO_E, body, queryStr))
+                    if(m_fileTool->queryDb(TB_MCU_VERSION_INFO_E, body, queryStr))
                     {
                         infos = boost::any_cast<QList<BODY_MCU_VERSION_INFO_S>>(body);
                         foreach (BODY_MCU_VERSION_INFO_S info1, infos) {
@@ -333,13 +335,13 @@ namespace ExampleServer{
                             {qDebug() << __FUNCTION__ << __LINE__ << info1.mcuTypeName << info1.name;
                                 info1.isDefaultVersion = false;
                                 body = info1;
-                                st_client_file::Instance()->updateDb(TB_MCU_VERSION_INFO_E, body);
+                                m_fileTool->updateDb(TB_MCU_VERSION_INFO_E, body);
                             }
                         }
                     }
 
                     body = info;
-                    if(st_client_file::Instance()->updateDb(TB_MCU_VERSION_INFO_E, body))
+                    if(m_fileTool->updateDb(TB_MCU_VERSION_INFO_E, body))
                     {
                         ackJsonObj["code"] = BdExecutionSucceeded_E;
                         ackJsonObj["msg"] = "Set mcu default version successfully!";
@@ -372,7 +374,7 @@ namespace ExampleServer{
                     if(crcObj.contains("Custom"))
                         info.custom = crcObj["Custom"].toString();
                     GS_DB_BODY_C body = info;
-                    if(st_client_file::Instance()->addDb(TB_CRC_VERSION_INFO_E, body))
+                    if(m_fileTool->addDb(TB_CRC_VERSION_INFO_E, body))
                     {
                         ackJsonObj["code"] = BdExecutionSucceeded_E;
                         ackJsonObj["msg"] = "Add crc version successfully!";
@@ -397,7 +399,7 @@ namespace ExampleServer{
                     info.productName = crcObj["ProductName"].toString();
                     info.name = crcObj["Name"].toString();
                     GS_DB_BODY_C body = info;
-                    if(st_client_file::Instance()->removeDb(TB_CRC_VERSION_INFO_E, body))
+                    if(m_fileTool->removeDb(TB_CRC_VERSION_INFO_E, body))
                     {
                         ackJsonObj["code"] = BdExecutionSucceeded_E;
                         ackJsonObj["msg"] = "Remove crc version successfully!";
@@ -431,7 +433,7 @@ namespace ExampleServer{
                         info.custom = crcObj["Custom"].toString();
 
                     GS_DB_BODY_C body = info;
-                    if(!st_client_file::Instance()->queryDb(TB_CRC_VERSION_INFO_E, body))
+                    if(!m_fileTool->queryDb(TB_CRC_VERSION_INFO_E, body))
                     {
                         ackJsonObj["code"] = BdExecutionFailed_E;
                         ackJsonObj["msg"] = "Crc version do not exists!";
@@ -445,7 +447,7 @@ namespace ExampleServer{
                     QList<BODY_CRC_VERSION_INFO_S> infos;
                     body = infos;
                     QString queryStr = QString("product_name = \"%1\" AND is_default_version = TRUE").arg(info.productName);
-                    if(st_client_file::Instance()->queryDb(TB_CRC_VERSION_INFO_E, body, queryStr)) //查到默认版本，根绝定制信息确认是否需要去掉默认
+                    if(m_fileTool->queryDb(TB_CRC_VERSION_INFO_E, body, queryStr)) //查到默认版本，根绝定制信息确认是否需要去掉默认
                     {
                         QList<BODY_CRC_VERSION_INFO_S> infos = boost::any_cast<QList<BODY_CRC_VERSION_INFO_S>>(body);
                         foreach (BODY_CRC_VERSION_INFO_S info1, infos) {
@@ -454,14 +456,14 @@ namespace ExampleServer{
                             {
                                 info1.isDefaultVersion = false;
                                 body = info1;
-                                st_client_file::Instance()->updateDb(TB_CRC_VERSION_INFO_E, body);
+                                m_fileTool->updateDb(TB_CRC_VERSION_INFO_E, body);
                             }
                         }
                     }
 
 
                     body = info;
-                    if(st_client_file::Instance()->updateDb(TB_CRC_VERSION_INFO_E, body))
+                    if(m_fileTool->updateDb(TB_CRC_VERSION_INFO_E, body))
                     {
                         ackJsonObj["code"] = BdExecutionSucceeded_E;
                         ackJsonObj["msg"] = "Set crc default version successfully!";
@@ -489,7 +491,7 @@ namespace ExampleServer{
                     BODY_PRODUCT_INFO_S info1;
                     info1.name = productName;
                     GS_DB_BODY_C body = info1;
-                    if(!st_client_file::Instance()->queryDb(TB_PRODUCTS_INFO_E, body))
+                    if(!m_fileTool->queryDb(TB_PRODUCTS_INFO_E, body))
                     {
                         ackJsonObj["code"] = BdProductDontExist_E;
                         ackJsonObj["msg"] ="The product does not exist!";
@@ -536,7 +538,7 @@ namespace ExampleServer{
                             info2.subFilePath = "";
                         }
                         body = info2;
-                        res = st_client_file::Instance()->addDb(TB_GROUP_VERSION_INFO_E, body);
+                        res = m_fileTool->addDb(TB_GROUP_VERSION_INFO_E, body);
                     }
                     if(!res)
                     {
@@ -583,7 +585,7 @@ namespace ExampleServer{
                     info.productName = dataObj["ProductName"].toString();
                     info.name = dataObj["Name"].toString();
                     GS_DB_BODY_C body = info;
-                    if(st_client_file::Instance()->removeDb(TB_GROUP_VERSION_INFO_E, body))
+                    if(m_fileTool->removeDb(TB_GROUP_VERSION_INFO_E, body))
                     {
                         ackJsonObj["code"] = BdExecutionSucceeded_E;
                         ackJsonObj["msg"] = "Succeeded remove a group file!";
@@ -611,7 +613,7 @@ namespace ExampleServer{
                     info.name = dataObj["Name"].toString();
                     info.subFileName = dataObj["SubFileName"].toString();
                     GS_DB_BODY_C body = info;
-                    if(st_client_file::Instance()->removeDb(TB_GROUP_VERSION_INFO_E, body))
+                    if(m_fileTool->removeDb(TB_GROUP_VERSION_INFO_E, body))
                     {
                         ackJsonObj["code"] = BdExecutionSucceeded_E;
                         ackJsonObj["msg"] = "Succeeded in remove file from group file!";
@@ -639,7 +641,7 @@ namespace ExampleServer{
                     QList<BODY_GROUP_VERSION_INFO_S> infos;
                     GS_DB_BODY_C bodys = infos;
                     QString queryStr = QString("product_name = \"%1\" AND name = \"%2\"").arg(productName).arg(name);
-                    if(!st_client_file::Instance()->queryDb(TB_GROUP_VERSION_INFO_E, bodys, queryStr))
+                    if(!m_fileTool->queryDb(TB_GROUP_VERSION_INFO_E, bodys, queryStr))
                     {
                         ackJsonObj["code"] = BdExecutionFailed_E;
                         ackJsonObj["msg"] = "Group version do not exists!";
@@ -651,13 +653,13 @@ namespace ExampleServer{
                     QList<BODY_GROUP_VERSION_INFO_S> clearInfos;
                     bodys = clearInfos;
                     queryStr = QString("product_name = \"%1\" AND is_default_version = TRUE").arg(productName);
-                    if(st_client_file::Instance()->queryDb(TB_GROUP_VERSION_INFO_E, bodys, queryStr))
+                    if(m_fileTool->queryDb(TB_GROUP_VERSION_INFO_E, bodys, queryStr))
                     {
                         clearInfos = boost::any_cast<QList<BODY_GROUP_VERSION_INFO_S>>(bodys);
                         foreach (BODY_GROUP_VERSION_INFO_S info, clearInfos) {
                             info.isDefaultVersion = false;
                             GS_DB_BODY_C body = info;
-                            st_client_file::Instance()->updateDb(TB_GROUP_VERSION_INFO_E, body);
+                            m_fileTool->updateDb(TB_GROUP_VERSION_INFO_E, body);
                         }
                     }
 
@@ -665,7 +667,7 @@ namespace ExampleServer{
                         info.isDefaultVersion = true;
                         qDebug() << __FUNCTION__ << __LINE__ << info.name << info.subFileName;
                         GS_DB_BODY_C body = info;
-                        st_client_file::Instance()->updateDb(TB_GROUP_VERSION_INFO_E, body);
+                        m_fileTool->updateDb(TB_GROUP_VERSION_INFO_E, body);
                     }
                     ackJsonObj["code"] = BdExecutionSucceeded_E;
                     ackJsonObj["msg"] = "Succeeded in set default version of group file!";
@@ -690,7 +692,7 @@ namespace ExampleServer{
                     info.modifyDate = dataObj["Date"].toString();
                     info.savePath = saveFilePath;
                     GS_DB_BODY_C body = info;
-                    if(st_client_file::Instance()->queryDb(TB_PRODUCTS_INFO_E, body))
+                    if(m_fileTool->queryDb(TB_PRODUCTS_INFO_E, body))
                     {
                         ackJsonObj["code"] = BdExecutionFailed_E;
                         ackJsonObj["msg"] = "Product already exists!";
@@ -717,7 +719,7 @@ namespace ExampleServer{
                         info.modifyDate = dataObj["Date"].toString();
                         info.savePath = saveFilePath;
                         GS_DB_BODY_C body = info;
-                        if(st_client_file::Instance()->addDb(TB_PRODUCTS_INFO_E, body))
+                        if(m_fileTool->addDb(TB_PRODUCTS_INFO_E, body))
                         {
                             ackJsonObj["code"] = BdExecutionSucceeded_E;
                             ackJsonObj["msg"] = "Add product successfully!";
@@ -754,7 +756,7 @@ namespace ExampleServer{
                         goto RESPONSE_END;
                     }
 
-                    if(st_client_file::Instance()->removeProductDb(newProductObj["ProductName"].toString()))
+                    if(m_fileTool->removeProductDb(newProductObj["ProductName"].toString()))
                     {
                         ackJsonObj["code"] = BdExecutionSucceeded_E;
                         ackJsonObj["msg"] = "Remove product successfully!";
@@ -807,7 +809,7 @@ namespace ExampleServer{
                     }
                     QString productName = dataObj["ProductName"].toString();
                     QJsonDocument productDoc;
-                    if(st_client_file::Instance()->openProductDb(productName,productDoc))
+                    if(m_fileTool->openProductDb(productName,productDoc))
                     {
                         QJsonObject productObj = productDoc.object();
                         if(productObj.contains(productName))
@@ -924,7 +926,7 @@ namespace ExampleServer{
                         foreach (QJsonValue val, productArray) {
                             user.products << val.toString();
                         }
-                        if(!st_client_file::Instance()->addAuthUser(user))
+                        if(!m_fileTool->addAuthUser(user))
                         {
                             ackJsonObj["code"] = BdAddUserFailed_E;
                             ackJsonObj["msg"] = "Failed to add user!";
@@ -953,7 +955,7 @@ namespace ExampleServer{
                         foreach (QJsonValue val, productArray) {
                             user.products << val.toString();
                         }
-                        if(!st_client_file::Instance()->removeAuthUser(user))
+                        if(!m_fileTool->removeAuthUser(user))
                         {
                             ackJsonObj["code"] = BdRemoveUserFailed_E;
                             ackJsonObj["msg"] = "Failed to remove user!";
@@ -982,7 +984,7 @@ namespace ExampleServer{
                         foreach (QJsonValue val, productArray) {
                             user.products << val.toString();
                         }
-                        if(!st_client_file::Instance()->editAuthUser(user))
+                        if(!m_fileTool->editAuthUser(user))
                         {
                             ackJsonObj["code"] = BdEditUserFailed_E;
                             ackJsonObj["msg"] = "Failed to edit user!";
@@ -997,7 +999,7 @@ namespace ExampleServer{
                 case BdRequestGetUserList_E:
                 {
                     QJsonDocument userDoc;
-                    if(st_client_file::Instance()->openAuthUsersDb(userDoc))
+                    if(m_fileTool->openAuthUsersDb(userDoc))
                     {
                         ackJsonObj["data"] = userDoc.object();
                         ackJsonObj["code"] = BdExecutionSucceeded_E;
@@ -1025,7 +1027,7 @@ namespace ExampleServer{
                     info1.name = productName;
                     GS_DB_BODY_C body = info1;
 
-                    if(!st_client_file::Instance()->queryDb(TB_PRODUCTS_INFO_E, body))
+                    if(!m_fileTool->queryDb(TB_PRODUCTS_INFO_E, body))
                     {
                         ackJsonObj["code"] = BdProductDontExist_E;
                         ackJsonObj["msg"] ="The product does not exist!";
@@ -1059,7 +1061,7 @@ namespace ExampleServer{
                         info2.productName = productName;
                         info2.name = versionName;
                         body = info2;
-                        if(st_client_file::Instance()->queryDb(TB_CRC_VERSION_INFO_E, body))
+                        if(m_fileTool->queryDb(TB_CRC_VERSION_INFO_E, body))
                         {
                             info2 = boost::any_cast<BODY_CRC_VERSION_INFO_S>(body);
                             if(custom == info2.custom)
@@ -1068,7 +1070,7 @@ namespace ExampleServer{
                                 custom = info2.custom;
                                 QJsonObject dataObj;
                                 QJsonObject crcObj;
-                                st_client_file::Instance()->putInfo2Json(TB_CRC_VERSION_INFO_E, body, crcObj);
+                                m_fileTool->putInfo2Json(TB_CRC_VERSION_INFO_E, body, crcObj);
                                 dataObj["SaveFilePath"] = info1.savePath;
                                 dataObj["VersionInfo"] = crcObj;
                                 dataObj["Custom"] = custom;
@@ -1080,7 +1082,7 @@ namespace ExampleServer{
                             QList<BODY_CRC_VERSION_INFO_S> infos;
                             body = infos;
                             QString queryStr = QString("product_name = \"%1\" AND name LIKE \"%%2%\"").arg(productName).arg(versionName);
-                            if(st_client_file::Instance()->queryDb(TB_CRC_VERSION_INFO_E, body, queryStr))
+                            if(m_fileTool->queryDb(TB_CRC_VERSION_INFO_E, body, queryStr))
                             {
                                 infos = boost::any_cast<QList<BODY_CRC_VERSION_INFO_S>>(body);
                                 QJsonObject crcObj;
@@ -1095,7 +1097,7 @@ namespace ExampleServer{
                                     if(finded && firstFinded == false)
                                     {
                                         body = info3;
-                                        st_client_file::Instance()->putInfo2Json(TB_CRC_VERSION_INFO_E, body, crcObj);
+                                        m_fileTool->putInfo2Json(TB_CRC_VERSION_INFO_E, body, crcObj);
                                         dataObj["VersionInfo"] = crcObj;
                                         firstFinded = true;
                                     }
@@ -1116,11 +1118,11 @@ namespace ExampleServer{
                         info2.mcuTypeName = fileSubType;
                         info2.name = versionName;
                         body = info2;
-                        if(st_client_file::Instance()->queryDb(TB_MCU_VERSION_INFO_E, body))
+                        if(m_fileTool->queryDb(TB_MCU_VERSION_INFO_E, body))
                         {
                             QJsonObject dataObj;
                             QJsonObject mcuObj;
-                            st_client_file::Instance()->putInfo2Json(TB_MCU_VERSION_INFO_E, body, mcuObj);
+                            m_fileTool->putInfo2Json(TB_MCU_VERSION_INFO_E, body, mcuObj);
                             dataObj["SaveFilePath"] = info1.savePath;
                             dataObj["VersionInfo"] = mcuObj;
                             ackJsonObj["data"] = dataObj;
@@ -1131,7 +1133,7 @@ namespace ExampleServer{
                             QList<BODY_MCU_VERSION_INFO_S> infos;
                             body = infos;
                             QString queryStr = QString("product_name = \"%1\" AND mcu_type_name = \"%2\" AND name LIKE \"%%3%\"").arg(productName).arg(fileSubType).arg(versionName);
-                            if(st_client_file::Instance()->queryDb(TB_MCU_VERSION_INFO_E, body, queryStr))
+                            if(m_fileTool->queryDb(TB_MCU_VERSION_INFO_E, body, queryStr))
                             {
                                 infos = boost::any_cast<QList<BODY_MCU_VERSION_INFO_S>>(body);
                                 QJsonObject mcuObj;
@@ -1141,7 +1143,7 @@ namespace ExampleServer{
                                     if(firstFinded == false)
                                     {
                                         body = info3;
-                                        st_client_file::Instance()->putInfo2Json(TB_MCU_VERSION_INFO_E, body, mcuObj);
+                                        m_fileTool->putInfo2Json(TB_MCU_VERSION_INFO_E, body, mcuObj);
                                         dataObj["VersionInfo"] = mcuObj;
                                         firstFinded = true;
                                     }
@@ -1158,10 +1160,10 @@ namespace ExampleServer{
                         QList<BODY_GROUP_VERSION_INFO_S> infos2;
                         body = infos2;
                         QString queryStr = QString("product_name = \"%1\" AND name = \"%2\"").arg(productName).arg(versionName);
-                        if(st_client_file::Instance()->queryDb(TB_GROUP_VERSION_INFO_E, body, queryStr))
+                        if(m_fileTool->queryDb(TB_GROUP_VERSION_INFO_E, body, queryStr))
                         {
                             QJsonObject infosObj;
-                            st_client_file::Instance()->putInfos2Json(TB_GROUP_VERSION_INFO_E, body, infosObj);
+                            m_fileTool->putInfos2Json(TB_GROUP_VERSION_INFO_E, body, infosObj);
                             if(infosObj.contains(versionName))
                             {
                                 QJsonObject dataObj;
@@ -1176,11 +1178,11 @@ namespace ExampleServer{
                             QList<BODY_GROUP_VERSION_INFO_S> infos;
                             body = infos;
                             QString queryStr = QString("product_name = \"%1\" AND name LIKE \"%%3%\"").arg(productName).arg(versionName);
-                            if(st_client_file::Instance()->queryDb(TB_GROUP_VERSION_INFO_E, body, queryStr))
+                            if(m_fileTool->queryDb(TB_GROUP_VERSION_INFO_E, body, queryStr))
                             {
                                 infos = boost::any_cast<QList<BODY_GROUP_VERSION_INFO_S>>(body);
                                 QJsonObject infosObj;
-                                st_client_file::Instance()->putInfos2Json(TB_GROUP_VERSION_INFO_E, body, infosObj);
+                                m_fileTool->putInfos2Json(TB_GROUP_VERSION_INFO_E, body, infosObj);
                                 if(infosObj.size() > 0)
                                 {
                                     dataObj["VersionInfo"] = infosObj[infosObj.keys().first()].toObject();
@@ -1224,7 +1226,7 @@ namespace ExampleServer{
                     info1.name = productName;
                     GS_DB_BODY_C body = info1;
 
-                    if(!st_client_file::Instance()->queryDb(TB_PRODUCTS_INFO_E, body))
+                    if(!m_fileTool->queryDb(TB_PRODUCTS_INFO_E, body))
                     {
                         ackJsonObj["code"] = BdProductDontExist_E;
                         ackJsonObj["msg"] ="The product does not exist!";
@@ -1250,7 +1252,7 @@ namespace ExampleServer{
                         QList<BODY_CRC_VERSION_INFO_S> infos2;
                         body = infos2;
                         QString queryStr = QString("product_name = \"%1\" AND is_default_version = TRUE").arg(productName);
-                        if(st_client_file::Instance()->queryDb(TB_CRC_VERSION_INFO_E, body, queryStr))
+                        if(m_fileTool->queryDb(TB_CRC_VERSION_INFO_E, body, queryStr))
                         {
                             infos2 = boost::any_cast<QList<BODY_CRC_VERSION_INFO_S>>(body);
 
@@ -1267,7 +1269,7 @@ namespace ExampleServer{
                                         {
                                             QJsonObject crcObj;
                                             body = info;
-                                            st_client_file::Instance()->putInfo2Json(TB_CRC_VERSION_INFO_E, body, crcObj);
+                                            m_fileTool->putInfo2Json(TB_CRC_VERSION_INFO_E, body, crcObj);
                                             QJsonObject dataObj;
                                             dataObj["SaveFilePath"] = info1.savePath;
                                             dataObj["VersionInfo"] = crcObj;
@@ -1285,7 +1287,7 @@ namespace ExampleServer{
                                         {
                                             QJsonObject crcObj;
                                             body = info;
-                                            st_client_file::Instance()->putInfo2Json(TB_CRC_VERSION_INFO_E, body, crcObj);
+                                            m_fileTool->putInfo2Json(TB_CRC_VERSION_INFO_E, body, crcObj);
                                             QJsonObject dataObj;
                                             dataObj["SaveFilePath"] = info1.savePath;
                                             dataObj["VersionInfo"] = crcObj;
@@ -1304,7 +1306,7 @@ namespace ExampleServer{
                                     {
                                         QJsonObject crcObj;
                                         body = info;
-                                        st_client_file::Instance()->putInfo2Json(TB_CRC_VERSION_INFO_E, body, crcObj);
+                                        m_fileTool->putInfo2Json(TB_CRC_VERSION_INFO_E, body, crcObj);
                                         QJsonObject dataObj;
                                         dataObj["SaveFilePath"] = info1.savePath;
                                         dataObj["VersionInfo"] = crcObj;
@@ -1322,13 +1324,13 @@ namespace ExampleServer{
                         QList<BODY_MCU_VERSION_INFO_S> infos2;
                         body = infos2;
                         QString queryStr = QString("product_name = \"%1\" AND is_default_version = TRUE").arg(productName);
-                        if(st_client_file::Instance()->queryDb(TB_MCU_VERSION_INFO_E, body, queryStr))
+                        if(m_fileTool->queryDb(TB_MCU_VERSION_INFO_E, body, queryStr))
                         {
                             infos2 = boost::any_cast<QList<BODY_MCU_VERSION_INFO_S>>(body);
                             foreach (BODY_MCU_VERSION_INFO_S info, infos2) {
                                 body = info;
                                 QJsonObject mcuObj;
-                                st_client_file::Instance()->putInfo2Json(TB_MCU_VERSION_INFO_E, body, mcuObj);
+                                m_fileTool->putInfo2Json(TB_MCU_VERSION_INFO_E, body, mcuObj);
                                 dataObj["SaveFilePath"] = info1.savePath;
                                 dataObj["VersionInfo"] = mcuObj;
                                 ackJsonObj["data"] = dataObj;
@@ -1342,10 +1344,10 @@ namespace ExampleServer{
                         QList<BODY_GROUP_VERSION_INFO_S> infos2;
                         body = infos2;
                         QString queryStr = QString("product_name = \"%1\" AND is_default_version = TRUE").arg(productName);
-                        if(st_client_file::Instance()->queryDb(TB_GROUP_VERSION_INFO_E, body, queryStr))
+                        if(m_fileTool->queryDb(TB_GROUP_VERSION_INFO_E, body, queryStr))
                         {
                             QJsonObject infosObj;
-                            st_client_file::Instance()->putInfos2Json(TB_GROUP_VERSION_INFO_E, body, infosObj);
+                            m_fileTool->putInfos2Json(TB_GROUP_VERSION_INFO_E, body, infosObj);
                             if(infosObj.size() > 0)
                             {
                                 QJsonObject dataObj;
@@ -1563,7 +1565,7 @@ namespace ExampleServer{
                     info.dateTime = QDateTime::fromString(dataObj["DateTime"].toString(), "yyyy-MM-dd hh:mm:ss");
                     info.serverDateTime = QDateTime::currentDateTime();
                     info.message = dataObj["Message"].toString();
-                    if(st_client_file::Instance()->addLogDb(info))
+                    if(m_fileTool->addLogDb(info))
                     {
                         ackJsonObj["code"] = BdExecutionSucceeded_E;
                         ackJsonObj["msg"] = "Add log successfully!";
@@ -1720,7 +1722,7 @@ namespace ExampleServer{
                     QJsonObject ackObj;
                     if(info.pageNo == 1)
                     {
-                        int count = st_client_file::Instance()->queryLogMatchCountDb(info.devNumber, queryStr);
+                        int count = m_fileTool->queryLogMatchCountDb(info.devNumber, queryStr);
                         if(count > 0)
                         {
                             ackObj["TotalCount"] = count;
@@ -1733,7 +1735,7 @@ namespace ExampleServer{
                             else
                                 queryStr = specifyServerDateTime;
                             qDebug() << __FUNCTION__ <<queryStr;
-                            count = st_client_file::Instance()->queryLogMatchCountDb(info.devNumber, queryStr);
+                            count = m_fileTool->queryLogMatchCountDb(info.devNumber, queryStr);
                             if(count > 0)
                             {
                                 ackObj["TotalCount"] = count;
@@ -1751,7 +1753,7 @@ namespace ExampleServer{
 
                     QList<BODY_LOG_INFO_S> infos;
                     GS_DB_BODY_C body = infos;
-                    res = st_client_file::Instance()->queryLogDb(info.devNumber, body, queryStr, (info.pageNo-1) * info.pageSize, info.pageSize);
+                    res = m_fileTool->queryLogDb(info.devNumber, body, queryStr, (info.pageNo-1) * info.pageSize, info.pageSize);
                     if(!res)
                     {
                         qWarning() << "If the time of the matching device is not queried, change the server time to match!";
@@ -1761,7 +1763,272 @@ namespace ExampleServer{
                             queryStr = specifyServerDateTime;
                         qDebug() << __FUNCTION__ <<queryStr;
                     }
-                    if(!st_client_file::Instance()->queryLogDb(info.devNumber, body, queryStr, (info.pageNo-1) * info.pageSize, info.pageSize))
+                    if(!m_fileTool->queryLogDb(info.devNumber, body, queryStr, (info.pageNo-1) * info.pageSize, info.pageSize))
+                    {
+                        ackJsonObj["code"] = BdExecutionFailed_E;
+                        ackJsonObj["msg"] = "No data found!";
+                        goto RESPONSE_END;
+                    }
+                    QJsonArray infoArray;
+                    infos = boost::any_cast<QList<BODY_LOG_INFO_S>>(body);
+                    foreach (BODY_LOG_INFO_S info1, infos) {
+                        QJsonObject infoObj;
+                        infoObj["ProductName"] = info1.productName;
+                        infoObj["DevNumber"] = info1.devNumber;
+                        infoObj["ImeiNumber"] = info1.imeiNumber;
+                        infoObj["FwVersion"] = info1.fwVersion;
+                        infoObj["Type"] = info1.type;
+                        infoObj["Subtype"] = info1.subtype;
+                        infoObj["Result"] = info1.result;
+                        infoObj["DateTime"] = info1.dateTime.toString("yyyy-MM-dd hh:mm:ss");
+                        infoObj["ServerDateTime"] = info1.serverDateTime.toString("yyyy-MM-dd hh:mm:ss");
+                        infoObj["Message"] = info1.message;
+                        infoArray << infoObj;
+                    }
+                    ackObj["Logs"] = infoArray;
+                    ackJsonObj["data"] = ackObj;
+                    ackJsonObj["code"] = BdExecutionSucceeded_E;
+                    ackJsonObj["msg"] = "Search log successfully!";
+                }
+                    break;
+                case BdRequestSetTerminalInfo_E:
+                {
+                    QJsonObject dataObj = jsonObj["data"].toObject();
+                    if(!dataObj.contains("ProductName") || !dataObj.contains("DeviceNum") || !dataObj.contains("PhoneNumber") || !dataObj.contains("LicenseNum")
+                            || !dataObj.contains("VideoId") || !dataObj.contains("TerminalId")
+                            || !dataObj.contains("ImeiNumber") || !dataObj.contains("CrcVersion") || !dataObj.contains("McuVersion")
+                            || !dataObj.contains("AuthorizationStatus") || !dataObj.contains("ServerInfos")
+                            || !dataObj.contains("DateTime") || !dataObj.contains("ServerDateTime"))
+                    {
+                        ackJsonObj["code"] = BdJsonParseError_E;
+                        ackJsonObj["msg"] ="Json parse error!";
+                        goto RESPONSE_END;
+                    }
+
+                    BODY_TMN_INFO_S info;
+                    info.productName = dataObj["ProductName"].toString();
+                    info.deviceNum = dataObj["DeviceNum"].toString();
+                    info.phoneNumber = dataObj["PhoneNumber"].toString();
+                    info.licenseNum = dataObj["LicenseNum"].toString();
+                    info.videoId = dataObj["VideoId"].toString();
+                    info.terminalId = dataObj["TerminalId"].toString();
+                    info.imeiNumber = dataObj["ImeiNumber"].toString();
+                    info.crcVersion = dataObj["CrcVersion"].toString();
+                    info.mcuVersion = dataObj["McuVersion"].toString();
+                    info.authorizationStatus = dataObj["AuthorizationStatus"].toInt();
+                    QJsonArray serverInfos = dataObj["ServerInfos"].toArray();
+                    foreach (QJsonValue val, serverInfos) {
+                        QJsonObject serverInfoObj = val.toObject();
+                        if(!serverInfoObj.contains("IpAddr") || !serverInfoObj.contains("Port"))
+                            break;
+                        BODY_SERVER_INFO_S serverInfo;
+                        serverInfo.ipAddr = serverInfoObj["IpAddr"].toString();
+                        serverInfo.port = serverInfoObj["Port"].toInt();
+                        info.serverInfos << serverInfo;
+                    }
+
+                    info.dateTime = QDateTime::fromString(dataObj["DateTime"].toString(), "yyyy-MM-dd hh:mm:ss");
+                    info.serverDateTime = QDateTime::currentDateTime();
+
+                    if(m_fileTool->addTmnInfoLogDb(info))
+                    {
+                        ackJsonObj["code"] = BdExecutionSucceeded_E;
+                        ackJsonObj["msg"] = "Add log successfully!";
+                    }
+                    else
+                    {
+                        ackJsonObj["code"] = BdExecutionFailed_E;
+                        ackJsonObj["msg"] = "Add log failed!";
+                    }
+                }
+                    break;
+                case BdRequestQueryTerminalInfoLog_E:
+                {
+                    QJsonObject dataObj = jsonObj["data"].toObject();
+                    if(!dataObj.contains("ProductName") || !dataObj.contains("DevNumber") || !dataObj.contains("ImeiNumber") || !dataObj.contains("FwVersion")
+                            || !dataObj.contains("Type")
+                            || !dataObj.contains("Result") || !dataObj.contains("StartDateTime")
+                            || !dataObj.contains("FuzzySearch") || !dataObj.contains("EndDateTime")
+                            || !dataObj.contains("PageNo") || !dataObj.contains("PageSize"))
+                    {
+                        ackJsonObj["code"] = BdJsonParseError_E;
+                        ackJsonObj["msg"] ="Json parse error!";
+                        goto RESPONSE_END;
+                    }
+
+                    BD_REQUEST_LOG_S info;
+                    info.productName = dataObj["ProductName"].toString();
+                    info.devNumber = dataObj["DevNumber"].toString();
+                    info.imeiNumber = dataObj["ImeiNumber"].toString();
+                    info.fwVersion = dataObj["FwVersion"].toString();
+                    info.type = (GS_LOG_TYPE)dataObj["Type"].toInt();
+                    if(dataObj.contains("Subtype"))
+                        info.subtype = dataObj["Subtype"].toInt();
+                    else
+                        info.subtype = 0;
+                    info.result = (GS_LOG_RESULT)dataObj["Result"].toInt();
+                    info.startDateTime = QDateTime::fromString(dataObj["StartDateTime"].toString(), "yyyy-MM-dd hh:mm:ss");
+                    info.endDateTime = QDateTime::fromString(dataObj["EndDateTime"].toString(), "yyyy-MM-dd hh:mm:ss");
+                    info.fuzzySearch = dataObj["FuzzySearch"].toBool();
+                    info.pageNo = dataObj["PageNo"].toInt();
+                    info.pageSize = dataObj["PageSize"].toInt();
+
+                    QString queryStr;
+                    QString matchCondition1;
+                    QString specifyType;
+                    QString specifySubType;
+                    QString specifyResult;
+                    QString specifyDevNumber;
+                    QString specifyImeiNumber;
+                    QString specifyCurrentVersion;
+                    QString specifyDateTime;
+                    QString specifyServerDateTime;
+                    int subtypeMax;
+                    int resultMax;
+                    if(info.type == LOG_UPGRADE_E)
+                        subtypeMax = UPGRADE_TYPE_MAX;
+                    else if(info.type == LOG_DEV_MODULE_E)
+                        subtypeMax = DEV_MODULE_TYPE_MAX;
+                    else
+                        subtypeMax = 0;
+                    if(info.type == LOG_DEV_MODULE_E)
+                        resultMax = DEV_MODULE_STATUS_MAX;
+                    else
+                        resultMax = LOG_RESULT_MAX;
+                    if(info.type < LOG_TYPE_MAX)
+                        specifyType = QString(" type=%1 ").arg(info.type);
+                    if(info.subtype < subtypeMax)
+                        specifySubType = QString(" subtype=%1 ").arg(info.subtype);
+                    if(info.result < resultMax)
+                        specifyResult = QString(" result=%1 ").arg(info.result);
+
+                    if(info.devNumber.size() > 0)
+                    {
+                        if(info.fuzzySearch)
+                            specifyDevNumber = QString(" dev_number LIKE \"%%1%\" ").arg(info.devNumber);
+                        else
+                            specifyDevNumber = QString(" dev_number = \"%1\" ").arg(info.devNumber);
+                    }
+
+                    if(info.imeiNumber.size() > 0)
+                    {
+                        if(info.fuzzySearch)
+                            specifyImeiNumber =  QString(" imei_number LIKE \"%%1%\" ").arg(info.imeiNumber);
+                        else
+                            specifyImeiNumber = QString(" imei_number = \"%1\" ").arg(info.imeiNumber);
+                    }
+
+                    if(info.fwVersion.size() > 0)
+                    {
+                        if(info.fuzzySearch)
+                            specifyCurrentVersion =  QString(" fw_version LIKE \"%%1%\" ").arg(info.fwVersion);
+                        else
+                            specifyCurrentVersion = QString(" fw_version = \"%1\" ").arg(info.fwVersion);
+                    }
+                    if(info.productName == "ALL")
+                    {
+                        specifyDateTime = QString(" date_time >= '%1' AND date_time <= '%2' ")
+                                .arg(dataObj["StartDateTime"].toString()).arg(dataObj["EndDateTime"].toString());
+                        specifyServerDateTime = QString(" server_date_time >= '%1' AND server_date_time <= '%2' ")
+                                .arg(dataObj["StartDateTime"].toString()).arg(dataObj["EndDateTime"].toString());
+                    }
+                    else
+                    {
+                        specifyDateTime = QString(" product_name = \"%1\" AND date_time >= '%2' AND date_time <= '%3' ")
+                                .arg(info.productName).arg(dataObj["StartDateTime"].toString()).arg(dataObj["EndDateTime"].toString());
+                        specifyServerDateTime = QString(" product_name = \"%1\" AND server_date_time >= '%2' AND server_date_time <= '%3' ")
+                                .arg(info.productName).arg(dataObj["StartDateTime"].toString()).arg(dataObj["EndDateTime"].toString());
+                    }
+
+                    if(specifyType.size() > 0)
+                        matchCondition1 += specifyType;
+                    if(specifyImeiNumber.size() > 0)
+                    {
+                        if(matchCondition1.size() > 0)
+                            matchCondition1 += "AND" + specifyImeiNumber;
+                        else
+                            matchCondition1 += specifyImeiNumber;
+                    }
+                    if(specifyCurrentVersion.size() > 0)
+                    {
+                        if(matchCondition1.size() > 0)
+                            matchCondition1 += "AND" + specifyCurrentVersion;
+                        else
+                            matchCondition1 += specifyCurrentVersion;
+                    }
+                    if(specifySubType.size() > 0)
+                    {
+                        if(matchCondition1.size() > 0)
+                            matchCondition1 += "AND" + specifySubType;
+                        else
+                            matchCondition1 += specifySubType;
+                    }
+                    if(specifyResult.size() > 0)
+                    {
+                        if(matchCondition1.size() > 0)
+                            matchCondition1 += "AND" + specifyResult;
+                        else
+                            matchCondition1 += specifyResult;
+                    }
+
+                    if(specifyDevNumber.size() > 0)
+                    {
+                        if(matchCondition1.size() > 0)
+                            matchCondition1 += "AND" + specifyDevNumber;
+                        else
+                            matchCondition1 += specifyDevNumber;
+                    }
+
+                    if(matchCondition1.size() > 0)
+                        queryStr = matchCondition1 + "AND" + specifyDateTime;
+                    else
+                        queryStr = specifyDateTime;
+                    qDebug() << __FUNCTION__ <<queryStr;
+                    QJsonObject ackObj;
+                    if(info.pageNo == 1)
+                    {
+                        int count = m_fileTool->queryLogMatchCountDb(info.devNumber, queryStr);
+                        if(count > 0)
+                        {
+                            ackObj["TotalCount"] = count;
+                        }
+                        if(count <= 0)
+                        {
+                            qWarning() << "If the time of the matching device is not queried, change the server time to match!";
+                            if(matchCondition1.size() > 0)
+                                queryStr = matchCondition1 + "AND" + specifyServerDateTime;
+                            else
+                                queryStr = specifyServerDateTime;
+                            qDebug() << __FUNCTION__ <<queryStr;
+                            count = m_fileTool->queryLogMatchCountDb(info.devNumber, queryStr);
+                            if(count > 0)
+                            {
+                                ackObj["TotalCount"] = count;
+                            }
+                        }
+                        if(count <= 0)
+                        {
+                            ackJsonObj["code"] = BdExecutionFailed_E;
+                            ackJsonObj["msg"] = "No data found!";
+                            goto RESPONSE_END;
+                        }
+                    }
+
+
+
+                    QList<BODY_LOG_INFO_S> infos;
+                    GS_DB_BODY_C body = infos;
+                    res = m_fileTool->queryLogDb(info.devNumber, body, queryStr, (info.pageNo-1) * info.pageSize, info.pageSize);
+                    if(!res)
+                    {
+                        qWarning() << "If the time of the matching device is not queried, change the server time to match!";
+                        if(matchCondition1.size() > 0)
+                            queryStr = matchCondition1 + "AND" + specifyServerDateTime;
+                        else
+                            queryStr = specifyServerDateTime;
+                        qDebug() << __FUNCTION__ <<queryStr;
+                    }
+                    if(!m_fileTool->queryLogDb(info.devNumber, body, queryStr, (info.pageNo-1) * info.pageSize, info.pageSize))
                     {
                         ackJsonObj["code"] = BdExecutionFailed_E;
                         ackJsonObj["msg"] = "No data found!";

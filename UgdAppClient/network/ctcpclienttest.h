@@ -10,7 +10,7 @@ class CTcpClientTest : public CMyThread
 {
     Q_OBJECT
 public:
-    explicit CTcpClientTest(QObject *parent = nullptr);
+    explicit CTcpClientTest(quint64 nStartUUID, quint64 nEndUUID, QObject *parent = nullptr);
     ~CTcpClientTest();
     void startStopTest(bool bIsStart);
 

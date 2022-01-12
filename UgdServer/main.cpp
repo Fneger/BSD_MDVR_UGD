@@ -26,7 +26,7 @@ int main(int argc, char *argv[])
     a.setApplicationName("MdvrUgdServer");
 
 //    Install message handler
-    qInstallMessageHandler(stMessageOutput);
+    //qInstallMessageHandler(stMessageOutput);
     ZPMainFrame zpServer;
     zpServer.setWindowTitle(a.applicationName());
     g_logger.setLogLevel(3);

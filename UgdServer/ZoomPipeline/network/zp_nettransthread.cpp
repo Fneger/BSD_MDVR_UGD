@@ -297,7 +297,7 @@ namespace ZPNetwork{
 		//emit evt_Message(pSock,"Info>" +  QString(tr("Client Encrypted.")));
 		qDebug()<<pSock->peerAddress().toString()<<
 				  pSock->peerPort()  <<tr("(%1)..Encrypted.").arg((quint64)pSock);
-	}
+    }
 
 	void zp_netTransThread::client_closed()
 	{

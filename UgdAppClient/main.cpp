@@ -40,8 +40,8 @@ int main(int argc, char *argv[])
     QSharedMemory shared("ugd_client_share");				//绑定共享内存
     if (shared.attach())						//如果绑定成功，则表示共享内存已存在
     {
-        QMessageBox::warning(NULL, QObject::tr("Warning"), QObject::tr("Program is running!"));
-        return 0;
+//        QMessageBox::warning(NULL, QObject::tr("Warning"), QObject::tr("Program is running!"));
+//        return 0;
     }
     shared.create(1);
 

@@ -65,7 +65,7 @@ ZPMainFrame::ZPMainFrame(QWidget *parent)
                                                     this);
     connect (m_clientTable,&ExampleServer::st_client_table::evt_Message,this,&ZPMainFrame::on_evt_Message_Smartlink);
 
-    st_client_file::Instance()->setClientTable(m_clientTable);
+    st_client_file::setClientTable(m_clientTable);
 
     m_nTimerId = startTimer(2000);
     m_nTimerCheck =  startTimer(10000);
@@ -331,7 +331,7 @@ void ZPMainFrame::forkServer(QString  config_file)
 
     QString strSLDB_useracc = settings.value("Smartlink/SLDB_useracc","EMPTY").toString();
     m_clientTable->setDatabase_UserAcct(strSLDB_useracc);
-    st_client_file::Instance()->syncJson2Database();
+    st_client_file::syncJson2Database();
 
 
     QString strSLDB_mainEvent = settings.value("Smartlink/SLDB_mainEvt","EMPTY").toString();

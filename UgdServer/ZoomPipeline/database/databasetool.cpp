@@ -12,42 +12,56 @@ namespace ZPDatabase {
 
 using namespace BdUgdServer;
 
+QMap<int, LOG_TABLE_MAN_S> DatabaseTool::m_logTableManager;
+QMap<int, LOG_TABLE_MAN_S> DatabaseTool::m_tmnInfoLogTableManager;
+QMutex DatabaseTool::m_logManMutex;
+
 DatabaseTool::DatabaseTool(QObject *parent) : QObject(parent)
 {
     m_errInfo = "";
-    m_extTableName = "";
 }
 
-DatabaseTool *DatabaseTool::Instance()
+bool DatabaseTool::initLogTableManager(QSqlDatabase db, int devNum, bool isTmnInfo)
 {
-    static QMutex s_mutex;
-    static DatabaseTool *pInstance = nullptr;
-    s_mutex.lock();
-    if(pInstance == nullptr)
-        pInstance = new DatabaseTool;
-    s_mutex.unlock();
-    return pInstance;
-}
-
-bool DatabaseTool::initLogTableManager(QSqlDatabase db, int devNum)
-{
+    DatabaseTool dbTool;
     int tableNum = devNum / S_LOG_TABLE_DEV_MAX;
-    if(m_logTableManager.contains(tableNum))
-        return true;
-    LOG_TABLE_MAN_S man;
-    man.tableName = getLogTableName(devNum);
-    man.isCreated = tableExists(db, man.tableName + "_" + S_LOG_INFO_TABLE_NAME);
-    if(man.isCreated)
+    if(isTmnInfo)
     {
-        m_extTableName = man.tableName;
-        man.savedItemNum = queryItemsCount(db, TB_LOG_INFO_E);
+        if(m_tmnInfoLogTableManager.contains(tableNum))
+            return true;
+        LOG_TABLE_MAN_S man;
+        man.tableName = dbTool.getLogTableName(devNum);
+        man.isCreated = dbTool.tableExists(db, man.tableName + "_" + S_LOG_INFO_TABLE_NAME);
+        if(man.isCreated)
+        {
+            man.savedItemNum = dbTool.queryItemsCount(db, TB_LOG_INFO_E);
+        }
+        else
+            man.savedItemNum = 0;
+        man.startDevNumber = devNum;
+        man.endDevNumber = devNum + S_LOG_TABLE_DEV_MAX;
+        man.isFull = false;
+        m_tmnInfoLogTableManager[tableNum] = man;
     }
     else
-        man.savedItemNum = 0;
-    man.startDevNumber = devNum;
-    man.endDevNumber = devNum + S_LOG_TABLE_DEV_MAX;
-    man.isFull = false;
-    m_logTableManager[tableNum] = man;
+    {
+        if(m_logTableManager.contains(tableNum))
+            return true;
+        LOG_TABLE_MAN_S man;
+        man.tableName = dbTool.getLogTableName(devNum);
+        man.isCreated = dbTool.tableExists(db, man.tableName + "_" + S_LOG_INFO_TABLE_NAME);
+        if(man.isCreated)
+        {
+            man.savedItemNum = dbTool.queryItemsCount(db, TB_LOG_INFO_E);
+        }
+        else
+            man.savedItemNum = 0;
+        man.startDevNumber = devNum;
+        man.endDevNumber = devNum + S_LOG_TABLE_DEV_MAX;
+        man.isFull = false;
+        m_logTableManager[tableNum] = man;
+    }
+
     return true;
 }
 
@@ -63,40 +77,76 @@ QString DatabaseTool::getLogTableName(int devNumber)
     return QString("%1").arg(startNum, 8, 10, QChar('0'));
 }
 
-bool DatabaseTool::logTableExists(QSqlDatabase db, const QString &devNumber)
+bool DatabaseTool::logTableExists(QSqlDatabase db, const QString &devNumber, bool isTmnInfo)
 {
     bool res = false;
     m_logManMutex.lock();
-    int devNum = devNumber.toInt();
-    initLogTableManager(db, devNum);
-    int tableNum = devNum / S_LOG_TABLE_DEV_MAX;
-    if(!m_logTableManager.contains(tableNum))
+    if(isTmnInfo)
     {
-        m_logManMutex.unlock();
-        return res;
-    }
+        int devNum = devNumber.toInt();
+        initLogTableManager(db, devNum, isTmnInfo);
+        int tableNum = devNum / S_LOG_TABLE_DEV_MAX;
+        if(!m_tmnInfoLogTableManager.contains(tableNum))
+        {
+            m_logManMutex.unlock();
+            return res;
+        }
 
-    res = m_logTableManager[tableNum].isCreated;
+        res = m_tmnInfoLogTableManager[tableNum].isCreated;
+    }
+    else
+    {
+        int devNum = devNumber.toInt();
+        initLogTableManager(db, devNum);
+        int tableNum = devNum / S_LOG_TABLE_DEV_MAX;
+        if(!m_logTableManager.contains(tableNum))
+        {
+            m_logManMutex.unlock();
+            return res;
+        }
+
+        res = m_logTableManager[tableNum].isCreated;
+    }
     m_logManMutex.unlock();
     return res;
 }
 
-void DatabaseTool::setLogTableExists(QSqlDatabase db, const QString &devNumber, bool bExists)
+void DatabaseTool::setLogTableExists(QSqlDatabase db, const QString &devNumber, bool bExists, bool isTmnInfo)
 {
-    m_logManMutex.lock();
-    int devNum = devNumber.toInt();
-    initLogTableManager(db, devNum);
-    int tableNum = devNumber.toInt() / S_LOG_TABLE_DEV_MAX;
-    if(!m_logTableManager.contains(tableNum))
+    if(isTmnInfo)
     {
-        m_logManMutex.unlock();
-        return;
-    }
+        m_logManMutex.lock();
+        int devNum = devNumber.toInt();
+        initLogTableManager(db, devNum, isTmnInfo);
+        int tableNum = devNumber.toInt() / S_LOG_TABLE_DEV_MAX;
+        if(!m_tmnInfoLogTableManager.contains(tableNum))
+        {
+            m_logManMutex.unlock();
+            return;
+        }
 
-    LOG_TABLE_MAN_S man = m_logTableManager[tableNum];
-    man.isCreated = bExists;
-    m_logTableManager[tableNum]  = man;
-    m_logManMutex.unlock();
+        LOG_TABLE_MAN_S man = m_tmnInfoLogTableManager[tableNum];
+        man.isCreated = bExists;
+        m_tmnInfoLogTableManager[tableNum]  = man;
+        m_logManMutex.unlock();
+    }
+    else
+    {
+        m_logManMutex.lock();
+        int devNum = devNumber.toInt();
+        initLogTableManager(db, devNum);
+        int tableNum = devNumber.toInt() / S_LOG_TABLE_DEV_MAX;
+        if(!m_logTableManager.contains(tableNum))
+        {
+            m_logManMutex.unlock();
+            return;
+        }
+
+        LOG_TABLE_MAN_S man = m_logTableManager[tableNum];
+        man.isCreated = bExists;
+        m_logTableManager[tableNum]  = man;
+        m_logManMutex.unlock();
+    }
 }
 
 QString DatabaseTool::errInfo()
@@ -214,7 +264,41 @@ void DatabaseTool::putDb2Struct(GS_BODY_TYPE nType, GS_DB_BODY_C &body, const QS
         body = info;
     }
         break;
-
+    case TB_TMN_INFO_LOG_INFO_E:
+    {
+        BODY_TMN_INFO_S info;
+        info.id = query.value(0).toInt();
+        info.productName = query.value(1).toString();
+        info.deviceNum = query.value(2).toString();
+        info.phoneNumber = query.value(3).toString();
+        info.licenseNum = query.value(4).toString();
+        info.videoId = query.value(5).toString();
+        info.terminalId = query.value(6).toString();
+        info.imeiNumber = query.value(7).toString();
+        info.crcVersion = query.value(8).toString();
+        info.mcuVersion = query.value(9).toString();
+        info.authorizationStatus = query.value(10).toInt();
+        info.serverInfos.clear();
+        QJsonParseError err;
+        QJsonDocument doc = QJsonDocument::fromJson(query.value(11).toString().toUtf8(),&err);
+        if (QJsonParseError::NoError != err.error)
+        {
+            QJsonArray serverInfos = doc.array();
+            foreach (QJsonValue val, serverInfos) {
+                QJsonObject serverInfoObj = val.toObject();
+                if(!serverInfoObj.contains("IpAddr") || !serverInfoObj.contains("Port"))
+                    break;
+                BODY_SERVER_INFO_S serverInfo;
+                serverInfo.ipAddr = serverInfoObj["IpAddr"].toString();
+                serverInfo.port = serverInfoObj["Port"].toInt();
+                info.serverInfos << serverInfo;
+            }
+        }
+        info.dateTime = query.value(8).toDateTime();
+        info.serverDateTime = query.value(9).toDateTime();
+        body = info;
+    }
+        break;
     }
 }
 
@@ -287,7 +371,7 @@ bool DatabaseTool::tableExists(QSqlDatabase db, const QString &tableName)
     return res;
 }
 
-bool DatabaseTool::createTable(QSqlDatabase db, GS_BODY_TYPE nType)
+bool DatabaseTool::createTable(QSqlDatabase db, GS_BODY_TYPE nType, const QString &extTableName)
 {
     bool res = false;
     if(nType >= TB_TYPE_MAX || nType < 0)
@@ -381,7 +465,7 @@ bool DatabaseTool::createTable(QSqlDatabase db, GS_BODY_TYPE nType)
                           ")ENGINE=InnoDB DEFAULT CHARSET=utf8;").arg(tableName);
             break;
         case TB_LOG_INFO_E:
-            tableName = QString("%1_%2").arg(m_extTableName).arg(S_LOG_INFO_TABLE_NAME);
+            tableName = QString("%1_%2").arg(extTableName).arg(S_LOG_INFO_TABLE_NAME);
             sql = QString("CREATE TABLE IF NOT EXISTS `%1` ("
                           "`id` BIGINT(20) AUTO_INCREMENT,"
                           "`product_name` VARCHAR(64) NOT NULL,"
@@ -402,6 +486,31 @@ bool DatabaseTool::createTable(QSqlDatabase db, GS_BODY_TYPE nType)
                           "INDEX `result` (`result`)"
                           ")ENGINE=InnoDB DEFAULT CHARSET=utf8;").arg(tableName);
             break;
+        case TB_TMN_INFO_LOG_INFO_E:
+            tableName = QString("%1_%2").arg(extTableName).arg(S_TMN_INFO_LOG_INFO_TABLE_NAME);
+            sql = QString("CREATE TABLE IF NOT EXISTS `%1` ("
+                          "`id` BIGINT(20) AUTO_INCREMENT,"
+                          "`product_name` VARCHAR(64) NOT NULL,"
+                          "`device_num` VARCHAR(64) NOT NULL,"
+                          "`phone_number` VARCHAR(64),"
+                          "`license_num` VARCHAR(64),"
+                          "`video_id` VARCHAR(64),"
+                          "`terminal_id` VARCHAR(64),"
+                          "`imei_number` VARCHAR(64),"
+                          "`crc_version` VARCHAR(128),"
+                          "`mcu_version` VARCHAR(64),"
+                          "`authorization_status` INT UNSIGNED NOT NULL,"
+                          "`server_infos` VARCHAR(1024),"
+                          "`date_time` DATETIME NOT NULL,"
+                          "`server_date_time` DATETIME NOT NULL,"
+                          "PRIMARY KEY ( `id` ),"
+                          "INDEX `product_name` (`product_name`),"
+                          "INDEX `dev_number` (`dev_number`),"
+                          "INDEX `type` (`type`),"
+                          "INDEX `subtype` (`subtype`),"
+                          "INDEX `result` (`result`)"
+                          ")ENGINE=InnoDB DEFAULT CHARSET=utf8;").arg(tableName);
+            break;
         }
         query.prepare(sql);
         if(query.exec() == true)
@@ -409,6 +518,7 @@ bool DatabaseTool::createTable(QSqlDatabase db, GS_BODY_TYPE nType)
             if (tableExists(db, tableName))
             {
                 res = true;
+                qDebug() << QString("Create table(%1) Ok").arg(tableName);
             }
             else
             {
@@ -428,7 +538,7 @@ bool DatabaseTool::createTable(QSqlDatabase db, GS_BODY_TYPE nType)
     return res;
 }
 
-bool DatabaseTool::deleteTable(QSqlDatabase db, GS_BODY_TYPE nType)
+bool DatabaseTool::deleteTable(QSqlDatabase db, GS_BODY_TYPE nType, const QString &extTableName)
 {
     bool res = false;
     if(nType >= TB_TYPE_MAX || nType < 0)
@@ -458,7 +568,10 @@ bool DatabaseTool::deleteTable(QSqlDatabase db, GS_BODY_TYPE nType)
             tableName = S_GROUP_VERSION_INFO_TABLE_NAME;
             break;
         case TB_LOG_INFO_E:
-            tableName = QString("%1_%2").arg(m_extTableName).arg(S_LOG_INFO_TABLE_NAME);
+            tableName = QString("%1_%2").arg(extTableName).arg(S_LOG_INFO_TABLE_NAME);
+            break;
+        case TB_TMN_INFO_LOG_INFO_E:
+            tableName = QString("%1_%2").arg(extTableName).arg(S_TMN_INFO_LOG_INFO_TABLE_NAME);
             break;
         }
         sql = QString("DROP TABLE %1;").arg(tableName);
@@ -480,7 +593,7 @@ bool DatabaseTool::deleteTable(QSqlDatabase db, GS_BODY_TYPE nType)
     return res;
 }
 
-bool DatabaseTool::insertItem(QSqlDatabase db, GS_BODY_TYPE nType, const GS_DB_BODY_C &dbBody)
+bool DatabaseTool::insertItem(QSqlDatabase db, GS_BODY_TYPE nType, const GS_DB_BODY_C &dbBody, const QString &extTableName)
 {
     bool res = false;
     if(nType >= TB_TYPE_MAX || nType < 0)
@@ -598,7 +711,7 @@ bool DatabaseTool::insertItem(QSqlDatabase db, GS_BODY_TYPE nType, const GS_DB_B
                           "(product_name, dev_number, imei_number, fw_version, type, subtype, result, date_time, server_date_time, message)"
                           "VALUES"
                           "(:product_name, :dev_number, :imei_number, :fw_version, :type, :subtype, :result, :date_time, :server_date_time, :message);")
-                    .arg(m_extTableName).arg(S_LOG_INFO_TABLE_NAME);
+                    .arg(extTableName).arg(S_LOG_INFO_TABLE_NAME);
             query.prepare(sql);
             query.bindValue(":product_name", body.productName);
             query.bindValue(":dev_number", body.devNumber);
@@ -610,6 +723,42 @@ bool DatabaseTool::insertItem(QSqlDatabase db, GS_BODY_TYPE nType, const GS_DB_B
             query.bindValue(":date_time", body.dateTime);
             query.bindValue(":server_date_time", body.serverDateTime);
             query.bindValue(":message", body.message);
+        }
+            break;
+        case TB_TMN_INFO_LOG_INFO_E:
+        {
+            BODY_TMN_INFO_S body =  boost::any_cast<BODY_TMN_INFO_S>(dbBody);
+            sql = QString("INSERT INTO %1_%2"
+                          "(product_name, device_num, phone_number, license_num, video_id, terminal_id, imei_number, crc_version, mcu_version, authorization_status, "
+                          "server_infos, date_time, server_date_time)"
+                          "VALUES"
+                          "(:product_name, :device_num, :phone_number, :license_num, :video_id, :terminal_id, :imei_number, :crc_version, :mcu_version, :authorization_status, "
+                          ":server_infos, :date_time, :server_date_time);")
+                    .arg(extTableName).arg(S_TMN_INFO_LOG_INFO_TABLE_NAME);
+            query.prepare(sql);
+            query.bindValue(":product_name", body.productName);
+            query.bindValue(":device_num", body.deviceNum);
+            query.bindValue(":phone_number", body.phoneNumber);
+            query.bindValue(":license_num", body.licenseNum);
+            query.bindValue(":video_id", body.videoId);
+            query.bindValue(":terminal_id", body.terminalId);
+            query.bindValue(":imei_number", body.imeiNumber);
+            query.bindValue(":crc_version", body.crcVersion);
+            query.bindValue(":mcu_version", body.mcuVersion);
+            query.bindValue(":authorization_status", body.authorizationStatus);
+            QJsonDocument doc;
+            QJsonObject obj;
+            QJsonArray objArr;
+
+            foreach (BODY_SERVER_INFO_S info, body.serverInfos) {
+                obj["IpAddr"] = info.ipAddr;
+                obj["Port"] = info.port;
+                objArr << obj;
+            }
+            doc.setArray(objArr);
+            query.bindValue(":server_infos", QString(doc.toJson(QJsonDocument::Indented).data()));
+            query.bindValue(":date_time", body.dateTime);
+            query.bindValue(":server_date_time", body.serverDateTime);
         }
             break;
         }
@@ -756,7 +905,7 @@ bool DatabaseTool::updateItem(QSqlDatabase db, GS_BODY_TYPE nType, const GS_DB_B
         case TB_USERS_INFO_E:
         {
             USER_INFO_S body =  boost::any_cast<USER_INFO_S>(dbBody);
-            sql = QString("UPDATE %1 SET auth=?, date=?, products=?, log_path=?, auth_bits=?, message=? WHERE id=?;").arg(S_USERS_INFO_TABLE_NAME);
+            sql = QString("UPDATE %1 SET auth=?, date=?, products=?, password=?, log_path=?, auth_bits=?, message=? WHERE id=?;").arg(S_USERS_INFO_TABLE_NAME);
             query.prepare(sql);
             query.addBindValue(body.auth);
             query.addBindValue(body.date);
@@ -979,7 +1128,7 @@ __SQL_QUERY_FAILED:
     return res;
 }
 
-bool DatabaseTool::queryItems(QSqlDatabase db, GS_BODY_TYPE nType, GS_DB_BODY_C &dbBodys, int startId, int nItemCntMax)
+bool DatabaseTool::queryItems(QSqlDatabase db, GS_BODY_TYPE nType, GS_DB_BODY_C &dbBodys, const QString &extTableName, int startId, int nItemCntMax)
 {
     bool res = false;
     if(nType >= TB_TYPE_MAX || nType < 0)
@@ -1138,7 +1287,7 @@ __SQL_QUERY_FAILED:
     return res;
 }
 
-bool DatabaseTool::queryItems(QSqlDatabase db, GS_BODY_TYPE nType, GS_DB_BODY_C &dbBodys, const QString &queryCondition, int startId, int nItemCntMax)
+bool DatabaseTool::queryItems(QSqlDatabase db, GS_BODY_TYPE nType, GS_DB_BODY_C &dbBodys, const QString &queryCondition, const QString &extTableName, int startId, int nItemCntMax)
 {
     bool res = false;
     if(nType >= TB_TYPE_MAX || nType < 0)
@@ -1299,7 +1448,7 @@ bool DatabaseTool::queryItems(QSqlDatabase db, GS_BODY_TYPE nType, GS_DB_BODY_C 
             break;
         case TB_LOG_INFO_E:
         {
-            sql = QString("SELECT * FROM %1_%2 WHERE %3 LIMIT ?,?;").arg(m_extTableName).arg(S_LOG_INFO_TABLE_NAME)
+            sql = QString("SELECT * FROM %1_%2 WHERE %3 LIMIT ?,?;").arg(extTableName).arg(S_LOG_INFO_TABLE_NAME)
                     .arg(queryCondition);
             query.prepare(sql);
             query.addBindValue(startId);
@@ -1324,6 +1473,33 @@ bool DatabaseTool::queryItems(QSqlDatabase db, GS_BODY_TYPE nType, GS_DB_BODY_C 
                 goto __SQL_QUERY_FAILED;
         }
             break;
+        case TB_TMN_INFO_LOG_INFO_E:
+        {
+            sql = QString("SELECT * FROM %1_%2 WHERE %3 LIMIT ?,?;").arg(extTableName).arg(S_TMN_INFO_LOG_INFO_TABLE_NAME)
+                    .arg(queryCondition);
+            query.prepare(sql);
+            query.addBindValue(startId);
+            query.addBindValue(nItemCntMax);
+            if (true==query.exec())
+            {
+                QList<BODY_TMN_INFO_S> items = boost::any_cast<QList<BODY_TMN_INFO_S>>(dbBodys);
+                items.clear();
+                while (query.next()) {
+                    BODY_TMN_INFO_S body;
+                    GS_DB_BODY_C tBody;
+                    putDb2Struct(nType, tBody, query);
+                    body = boost::any_cast<BODY_TMN_INFO_S>(tBody);
+                    items << body;
+                    res = true;
+                }
+                if(!res)
+                    m_errInfo = QString("Query log info failed");
+                dbBodys = items;
+            }
+            else
+                goto __SQL_QUERY_FAILED;
+        }
+            break;
         }
     }
     else
@@ -1337,7 +1513,7 @@ __SQL_QUERY_FAILED:
     return res;
 }
 
-int DatabaseTool::queryMatchItemsCount(QSqlDatabase db, GS_BODY_TYPE nType, const QString &queryCondition)
+int DatabaseTool::queryMatchItemsCount(QSqlDatabase db, GS_BODY_TYPE nType, const QString &queryCondition, const QString &extTableName)
 {
     int count = 0;
     bool res = false;
@@ -1395,7 +1571,7 @@ int DatabaseTool::queryMatchItemsCount(QSqlDatabase db, GS_BODY_TYPE nType, cons
             break;
         case TB_LOG_INFO_E:
         {
-            sql = QString("SELECT count(*) FROM %1_%2 WHERE %3;").arg(m_extTableName).arg(S_LOG_INFO_TABLE_NAME)
+            sql = QString("SELECT count(*) FROM %1_%2 WHERE %3;").arg(extTableName).arg(S_LOG_INFO_TABLE_NAME)
                     .arg(queryCondition);
             query.prepare(sql);
         }

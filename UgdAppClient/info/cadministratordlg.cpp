@@ -268,8 +268,8 @@ void CAdministratorDlg::on_UserListWidget_currentItemChanged(QListWidgetItem *cu
         USER_INFO_S info = m_users[ui->UserListWidget->currentItem()->text()];
         if(info.auth == BdUserAuthAdmin_E)
         {
-            ui->UserAddProductBtn->setEnabled(false);
-            ui->UserDeleteProductBtn->setEnabled(false);
+            ui->UserAddProductBtn->setEnabled(true);
+            ui->UserDeleteProductBtn->setEnabled(true);
             foreach (PRODUCT_INFO_S product, m_products) {
                 QListWidgetItem *item = new QListWidgetItem(product.productName);
                 ui->UserProductListWidget->addItem(item);
@@ -278,8 +278,8 @@ void CAdministratorDlg::on_UserListWidget_currentItemChanged(QListWidgetItem *cu
         }
         else
         {
-            ui->UserAddProductBtn->setEnabled(true);
-            ui->UserDeleteProductBtn->setEnabled(true);
+            ui->UserAddProductBtn->setEnabled(false);
+            ui->UserDeleteProductBtn->setEnabled(false);
             foreach (QString srcProduct, info.products) {
                 foreach (PRODUCT_INFO_S dstProduct, m_products) {
                     if(srcProduct == dstProduct.productName)

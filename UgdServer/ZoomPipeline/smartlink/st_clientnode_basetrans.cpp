@@ -15,7 +15,7 @@ namespace ExampleServer{
         m_uuid = 0xffffffffffffffff;//Not Valid
 		m_pClientTable = pClientTable;
 		bTermSet = false;
-        m_last_Report = QDateTime::currentDateTime();
+        m_lastReportSec = QDateTime::currentSecsSinceEpoch();
         m_bEventIsEcecuting = false;
 	}
     quint64 st_clientNode_baseTrans::uuid()
@@ -29,7 +29,7 @@ namespace ExampleServer{
         m_currentReadOffset = 0;
         m_currentMessageSize = 0;
         bTermSet = false;
-        m_last_Report = QDateTime::currentDateTime();
+        m_lastReportSec =QDateTime::currentSecsSinceEpoch();
     }
 	QObject * st_clientNode_baseTrans::sock()
 	{
@@ -39,9 +39,9 @@ namespace ExampleServer{
 	{
         return m_bUUIDRecieved;
 	}
-	QDateTime st_clientNode_baseTrans::lastActiveTime()
+    qint64 st_clientNode_baseTrans::lastActiveTime()
 	{
-		return m_last_Report;
+        return m_lastReportSec;
 	}
 	qint32 st_clientNode_baseTrans::bytesLeft()
 	{
@@ -120,7 +120,7 @@ namespace ExampleServer{
 		m_list_RawData.push_back(dtarray);
 		res = m_list_RawData.size();
 		m_mutex_rawData.unlock();
-		m_last_Report = QDateTime::currentDateTime();
+        m_lastReportSec = QDateTime::currentSecsSinceEpoch();
 		return res;
 	}
 	//!deal one message, affect m_currentRedOffset,m_currentMessageSize,m_currentHeader
@@ -297,9 +297,8 @@ namespace ExampleServer{
 
 	void st_clientNode_baseTrans::CheckHeartBeating()
 	{
-		QDateTime dtm = QDateTime::currentDateTime();
-		qint64 usc = this->m_last_Report.secsTo(dtm);
-		if (usc >=m_pClientTable->heartBeatingThrd())
+        qint64 currSec = QDateTime::currentSecsSinceEpoch();
+        if (currSec - this->m_lastReportSec >= m_pClientTable->heartBeatingThrd())
 		{
 			emit evt_Message(this,tr("Client ") + QString("%1").arg((unsigned int)((quint64)this)) + tr(" is dead, kick out."));
 			emit evt_close_client(this->sock());

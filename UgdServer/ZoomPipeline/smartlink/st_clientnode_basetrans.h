@@ -33,7 +33,7 @@ namespace ExampleServer{
         quint64 uuid();
 		QObject * sock();
         bool uuidValid();
-		QDateTime lastActiveTime();
+        qint64 lastActiveTime();
 		qint32 bytesLeft();
 
 		void CheckHeartBeating();
@@ -72,7 +72,7 @@ namespace ExampleServer{
 		//Client socket handle of this connection
 		QObject * m_pClientSock;
 		st_client_table * m_pClientTable;
-		QDateTime m_last_Report;
+        qint64 m_lastReportSec;
         QByteArray m_receivedBlock;
         USER_INFO_S m_userInfo;
         TERMINAL_INFO_S m_terminalInfo;

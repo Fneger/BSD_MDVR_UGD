@@ -55,9 +55,14 @@ MainWindow::MainWindow(QWidget *parent)
     m_tipsTransferredBytes = new QLabel(this);
     ui->statusbar->addWidget(m_tipsTransferredBytes);
 
-    m_tcpCilentTests.reset(new CTcpClientTest(this));
+    quint64 startId = 2000;
+    for(int i=0; i<S_TEST_THREAD_NUM; i++)
+    {
+        m_tcpCilentTests[i].reset(new CTcpClientTest(startId, startId + 1024));
+        startId += 2000;
+    }
 
-    ui->action_ClientTest->setVisible(false);
+    //ui->action_ClientTest->setVisible(false);
     ui->action_AddProduct->setVisible(false);
     ui->action_DeleteProduct->setVisible(false);
     ui->action_SaveProduct->setVisible(false);
@@ -449,7 +454,10 @@ void MainWindow::on_ProductList_clicked(const QModelIndex &index)
 
 void MainWindow::on_action_ClientTest_triggered(bool checked)
 {
-    m_tcpCilentTests->startStopTest(checked);
+    for(int i=0; i<S_TEST_THREAD_NUM; i++)
+    {
+        m_tcpCilentTests[i]->startStopTest(checked);
+    }
 }
 
 void MainWindow::on_action_SaveProduct_triggered()

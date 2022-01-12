@@ -8,9 +8,11 @@
 #include "st_global_def.h"
 
 using namespace GsGlobalDef;
-CTcpClientTest::CTcpClientTest(QObject *parent) : CMyThread(parent)
+CTcpClientTest::CTcpClientTest(quint64 nStartUUID, quint64 nEndUUID, QObject *parent) : CMyThread(parent)
 {
-    m_currNewUUID = 20000;
+    m_minUUID = nStartUUID;
+    m_maxUUID = nEndUUID;
+    m_currNewUUID = nStartUUID;
 }
 
 CTcpClientTest::~CTcpClientTest()
@@ -32,17 +34,13 @@ void CTcpClientTest::startStopTest(bool bIsStart)
 
 void CTcpClientTest::run()
 {
-    int nTotalClients = 1024;
+    int nTotalClients = 640;
     while (!getQuitFlag()) {
         QList<CTcpClient*> listObj = m_clients.values();
 
-        //!re-calculate uuid max,min
-        m_maxUUID = 2;
-        m_minUUID = 0xffffffffffffffff;
-
         foreach(CTcpClient * client,listObj)
         {
-            if (rand()%1000<5)
+            if (rand()%100<50)
             {
                 if(!client->isStartTest())
                     client->startTest();
@@ -64,7 +62,7 @@ void CTcpClientTest::run()
             }
         }
         //
-        if (rand()%1000 <100)
+        if (rand()%500 <100)
             //if (m_clients.size() < 1)
         {
             //1/10 chance to make new connections.
@@ -76,7 +74,7 @@ void CTcpClientTest::run()
                 {
                     CTcpClient * client = m_clients[listObj.at(i)];
                     m_clients.remove(listObj.at(i));
-                    client->stopClient();
+                    //client->stopClient();
                     client->deleteLater();
                 }
             }
@@ -84,12 +82,14 @@ void CTcpClientTest::run()
             uint16_t serverPort = Settings.value("ServerSettings/nServerPort","25600").toString().toUInt();
             CTcpClient * client = new CTcpClient();
             m_currNewUUID++;
+            if(m_currNewUUID > m_maxUUID)
+                m_currNewUUID = m_minUUID;
             client->setUuid(m_currNewUUID);
             client->setServerInfo(serverIp,serverPort);
             m_clients[m_currNewUUID] = client;
             client->startClient();
         }
-        msleep(1000);
+        msleep(500);
     }
     QList<CTcpClient*> listObj = m_clients.values();
     foreach(CTcpClient * client,listObj)

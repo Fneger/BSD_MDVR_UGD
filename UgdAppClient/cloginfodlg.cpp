@@ -47,7 +47,7 @@ CLogInfoDlg::CLogInfoDlg(CTcpClient *pTcpClient, QWidget *parent) :
     ui->MoreBtn->setToolTip(tr("Next Page"));
     memset(&m_pageInfo, 0, sizeof (m_pageInfo));
 
-    ui->TestGroupBox->hide();
+    //ui->TestGroupBox->hide();
 
     m_dateTimeFormat = "yyyy/MM/dd hh:mm:ss";
     ui->StartDateTimeBtn->setText(Settings.value("UiSettings/sLogSearchStartDateTime", QDateTime::currentDateTime()).toDateTime().toString("yyyy/MM/dd") + " 00:00:00");
